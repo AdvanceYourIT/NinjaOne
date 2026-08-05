@@ -3082,6 +3082,24 @@ Describe 'Invoke-NinjaOnePreFlightCheck' {
 			}
 		}
 
+		It 'should throw when authentication information does not include an access token' {
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				$script:NRAPIConnectionInformation = @{ URL = 'https://test.com' }
+				$script:NRAPIAuthenticationInformation = @{}
+				{ Invoke-NinjaOnePreFlightCheck } | Should -Throw '*Missing NinjaOne authentication token*'
+			}
+		}
+
+		It 'should throw when authentication access token is empty' {
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				$script:NRAPIConnectionInformation = @{ URL = 'https://test.com' }
+				$script:NRAPIAuthenticationInformation = @{ Access = '' }
+				{ Invoke-NinjaOnePreFlightCheck } | Should -Throw '*Missing NinjaOne authentication token*'
+			}
+		}
+
 		It 'should validate all required connection fields' {
 			$module = Get-Module -Name $ModuleName
 			& $module {
