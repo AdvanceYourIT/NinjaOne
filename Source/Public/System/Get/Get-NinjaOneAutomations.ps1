@@ -48,14 +48,11 @@ function Get-NinjaOneAutomations {
 				Resource = $Resource
 				QSCollection = $QSCollection
 			}
-			try {
-				$AutomationResults = New-NinjaOneGETRequest @RequestParams
-				return $AutomationResults
-			} catch {
-				if (-not $AutomationResults) {
-					throw 'No automation scripts found.'
-				}
+			$AutomationResults = New-NinjaOneGETRequest @RequestParams
+			if (-not $AutomationResults) {
+				throw 'No automation scripts found.'
 			}
+			return $AutomationResults
 		} catch {
 			New-NinjaOneError -ErrorRecord $_
 		}

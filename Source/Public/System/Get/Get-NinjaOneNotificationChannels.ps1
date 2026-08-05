@@ -53,14 +53,11 @@ function Get-NinjaOneNotificationChannels {
 				Resource = $Resource
 				QSCollection = $QSCollection
 			}
-			try {
-				$NotificationChannelResults = New-NinjaOneGETRequest @RequestParams
-				return $NotificationChannelResults
-			} catch {
-				if (-not $NotificationChannelResults) {
-					throw 'No notification channels found.'
-				}
+			$NotificationChannelResults = New-NinjaOneGETRequest @RequestParams
+			if (-not $NotificationChannelResults) {
+				throw 'No notification channels found.'
 			}
+			return $NotificationChannelResults
 		} catch {
 			New-NinjaOneError -ErrorRecord $_
 		}

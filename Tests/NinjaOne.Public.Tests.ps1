@@ -2693,18 +2693,18 @@ Describe 'Get-NinjaOneAlerts' {
 		}
 	}
 
-	It 'delegates no-result global failures to New-NinjaOneError' {
+	It 'delegates upstream global request failures to New-NinjaOneError without masking' {
 		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'Not found' }
 
-		{ Get-NinjaOneAlerts } | Should -Throw '*No alerts found*'
+		{ Get-NinjaOneAlerts } | Should -Throw '*Not found*'
 
 		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
 	}
 
-	It 'delegates no-result device failures to New-NinjaOneError with device id' {
+	It 'delegates upstream device request failures to New-NinjaOneError without masking' {
 		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'Not found' }
 
-		{ Get-NinjaOneAlerts -deviceId 7 } | Should -Throw '*No alerts found for device 7*'
+		{ Get-NinjaOneAlerts -deviceId 7 } | Should -Throw '*Not found*'
 
 		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
 	}
@@ -2894,12 +2894,12 @@ Describe 'Get-NinjaOneOrganisations' {
 		}
 	}
 
-	It 'normalizes upstream request failures to a no-organisations error via New-NinjaOneError' {
+	It 'delegates upstream request failures to New-NinjaOneError without masking' {
 		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
 			throw 'request-failed'
 		}
 
-		{ Get-NinjaOneOrganisations } | Should -Throw '*No organisations found*'
+		{ Get-NinjaOneOrganisations } | Should -Throw '*request-failed*'
 		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
 	}
 }
@@ -3002,12 +3002,12 @@ Describe 'Get-NinjaOneDevices' {
 		}
 	}
 
-	It 'normalizes upstream request failures to a not-found device error via New-NinjaOneError' {
+	It 'delegates upstream request failures to New-NinjaOneError without masking' {
 		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
 			throw 'request-failed'
 		}
 
-		{ Get-NinjaOneDevices -deviceId 7 } | Should -Throw '*Device with id 7 not found*'
+		{ Get-NinjaOneDevices -deviceId 7 } | Should -Throw '*request-failed*'
 		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
 	}
 }
@@ -3172,7 +3172,7 @@ Describe 'Get-NinjaOneNotificationChannels' {
 			throw 'notification-request-failed'
 		}
 
-		{ Get-NinjaOneNotificationChannels } | Should -Throw '*No notification channels found*'
+		{ Get-NinjaOneNotificationChannels } | Should -Throw '*notification-request-failed*'
 		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
 	}
 }
@@ -3212,7 +3212,7 @@ Describe 'Get-NinjaOneAutomations' {
 			throw 'automation-request-failed'
 		}
 
-		{ Get-NinjaOneAutomations } | Should -Throw '*No automation scripts found*'
+		{ Get-NinjaOneAutomations } | Should -Throw '*automation-request-failed*'
 		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
 	}
 }
