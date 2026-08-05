@@ -4,6 +4,15 @@ Please note that backwards compatibility breaks are prefixed with `{"BC"}` (shor
 
 Note: Version 2.3.0 was released in error and will be skipped.
 
+## 2026-08-05 - Version 2.8.1
+
+* Updates:
+  * Centralize connection and authentication preflight checks in the shared request path (`Invoke-NinjaOneRequest`) so request wrappers fail consistently when not connected.
+
+* Fixes:
+  * Stop masking upstream request failures as "No ... found" in system GET cmdlets, so authentication and request errors surface with their real cause.
+  * Add regression coverage for shared request preflight enforcement and the updated upstream error delegation behavior.
+
 ## 2026-07-23 - Version 2.8.0
 
 * Updates:
