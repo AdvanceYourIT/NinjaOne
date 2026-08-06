@@ -150,7 +150,11 @@ $linesOut.Add('  public:')
 $linesOut.Add('    paths:')
 $linesOut.Add('      - Source/Public/**')
 
-$flagIds = @{}
+$flagIds = @{
+	classes = $true
+	private = $true
+	public = $true
+}
 foreach ($folderName in $folderMappings.Keys) {
 	$flagId = ConvertTo-CodecovId -Name $folderName -Seen $flagIds
 	$pathPattern = $folderMappings[$folderName]
