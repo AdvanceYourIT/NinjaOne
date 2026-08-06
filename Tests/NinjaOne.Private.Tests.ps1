@@ -3175,6 +3175,33 @@ Describe 'Invoke-NinjaOneRequest' {
 
 			Assert-MockCalled -CommandName Invoke-WebRequest -ModuleName $ModuleName -Times 0
 		}
+
+		It 'should not refresh token when expiry is missing' {
+			Mock -CommandName Invoke-NinjaOnePreFlightCheck -ModuleName $ModuleName -MockWith {}
+			Mock -CommandName Update-NinjaOneToken -ModuleName $ModuleName -MockWith {
+				throw [System.Exception]::new('refresh should not run')
+			}
+			Mock -CommandName Invoke-WebRequest -ModuleName $ModuleName -MockWith {
+				[pscustomobject]@{
+					StatusCode = 200
+					Content = '{"result":{}}'
+					Headers = @{}
+				}
+			}
+
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				$script:NRAPIConnectionInformation = @{ URL = 'https://test.com' }
+				$script:NRAPIAuthenticationInformation = @{
+					Type = 'Bearer'
+					Access = 'test-token'
+				}
+
+				{ Invoke-NinjaOneRequest -Method 'GET' -Uri 'https://test.com/v2/test' } | Should -Not -Throw
+			}
+
+			Assert-MockCalled -CommandName Update-NinjaOneToken -ModuleName $ModuleName -Times 0
+		}
 	}
 }
 

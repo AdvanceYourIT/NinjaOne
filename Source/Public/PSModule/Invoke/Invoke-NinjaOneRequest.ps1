@@ -50,7 +50,8 @@ function Invoke-NinjaOneRequest {
 	begin {
 		Invoke-NinjaOnePreFlightCheck
 		$Now = Get-Date
-		if ($Script:NRAPIAuthenticationInformation.Expires -le $Now) {
+		$TokenExpiry = $Script:NRAPIAuthenticationInformation.Expires
+		if (($TokenExpiry -is [DateTime]) -and ($TokenExpiry -le $Now)) {
 			Write-Verbose 'The auth token has expired, renewing.'
 			Update-NinjaOneToken -Verbose:$VerbosePreference
 		}
