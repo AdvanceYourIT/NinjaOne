@@ -444,6 +444,61 @@ Describe 'Get-NinjaOneTicketStatuses' {
 	}
 }
 
+Describe 'Additional single-resource query coverage' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource)
+			[pscustomobject]@{ id = 25; resource = $Resource }
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	It 'gets an end user by id' {
+		$result = Get-NinjaOneEndUser -id 25
+
+		$result.resource | Should -Be 'v2/user/end-user/25'
+	}
+
+	It 'delegates missing end user results' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ Get-NinjaOneEndUser -id 25 } | Should -Throw '*End user 25 not found*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'gets a technician by id' {
+		$result = Get-NinjaOneTechnician -id 26
+
+		$result.resource | Should -Be 'v2/user/technician/26'
+	}
+
+	It 'delegates missing technician results' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ Get-NinjaOneTechnician -id 26 } | Should -Throw '*Technician 26 not found*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'gets a tab by id' {
+		$result = Get-NinjaOneTab -tabId 27
+
+		$result.resource | Should -Be 'v2/tab/27'
+	}
+
+	It 'delegates missing tab results' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ Get-NinjaOneTab -tabId 27 } | Should -Throw '*Tab 27 not found*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
 Describe 'Get-NinjaOneBackupJobs' {
 	BeforeEach {
 		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
@@ -4263,12 +4318,6 @@ Describe 'Organisation and management query functions' {
 		$result.pageSize | Should -Be 25
 	}
 
-	It 'delegates empty organisation device results' {
-		Mock -CommandName Get-NinjaOneDevices -ModuleName $ModuleName -MockWith { $null }
-
-		{ Get-NinjaOneOrganisationDevices -organisationId 71 } | Should -Throw "*parameter name 'Message'*"
-	}
-
 	It 'gets backup usage for all organisation locations' {
 		$result = Get-NinjaOneOrganisationLocationBackupUsage -organisationId 72
 
@@ -4494,11 +4543,6 @@ Describe 'Additional public API coverage' {
 		$result.body[0].label | Should -Be 'Office Region'
 	}
 
-	It 'surfaces the current delete request parameter mismatch' {
-		{ Invoke-NinjaOneCustomFieldsBulk -operation 'delete' -fieldNames @('Region', 'Floor') -Confirm:$false } |
-			Should -Throw "*parameter name 'QSCollection'*"
-	}
-
 	It 'does not execute bulk custom field operations with WhatIf' {
 		Invoke-NinjaOneCustomFieldsBulk -operation 'create' -customFields @(@{ name = 'Region' }) -WhatIf
 
@@ -4692,10 +4736,6 @@ Describe 'End user and removal operations' {
 	It 'requires an end user device access change' {
 		{ Set-NinjaOneEndUserDeviceAccess -id 111 -Confirm:$false } | Should -Throw '*Specify at least one*'
 		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
-	}
-
-	It 'surfaces the current tab delete request parameter mismatch' {
-		{ Remove-NinjaOneTab -tabId 112 -Confirm:$false } | Should -Throw "*parameter name 'QSCollection'*"
 	}
 
 	It 'removes the webhook configuration default route' {
