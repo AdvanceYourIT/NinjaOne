@@ -2600,6 +2600,23 @@ Describe 'New-NinjaOneDELETERequest' {
 			}
 		}
 
+		It 'should append a NameValueCollection to the request URI' {
+			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
+				@{ result = @{} }
+			}
+
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				$query = [System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+				$query.Add('fieldNames', 'Region,Floor')
+				$null = New-NinjaOneDELETERequest -Resource '/v2/custom-fields/bulk' -QSCollection $query
+			}
+
+			Assert-MockCalled -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+				$Uri -match '/v2/custom-fields/bulk\?' -and $Uri -match 'fieldNames=Region%2cFloor'
+			}
+		}
+
 		It 'should delegate web exceptions from Invoke-NinjaOneRequest in current core behavior' {
 			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
 				throw [System.Net.WebException]::new('web failure')

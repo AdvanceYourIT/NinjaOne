@@ -33,10 +33,14 @@ function New-NinjaOneDELETERequest {
 	try {
 		if ($QSCollection) {
 			Write-Verbose ('Query string in New-NinjaOneDELETERequest contains: {0}' -f ($QSCollection | Out-String))
-			$QueryStringCollection = [System.Web.HTTPUtility]::ParseQueryString([String]::Empty)
-			Write-Verbose 'Building [HttpQSCollection] for New-NinjaOneDELETERequest'
-			foreach ($Key in $QSCollection.Keys) {
-				$QueryStringCollection.Add($Key, $QSCollection.$Key)
+			if ($QSCollection -is [System.Collections.Specialized.NameValueCollection]) {
+				$QueryStringCollection = $QSCollection
+			} else {
+				$QueryStringCollection = [System.Web.HTTPUtility]::ParseQueryString([String]::Empty)
+				Write-Verbose 'Building [HttpQSCollection] for New-NinjaOneDELETERequest'
+				foreach ($Key in $QSCollection.Keys) {
+					$QueryStringCollection.Add($Key, $QSCollection[$Key])
+				}
 			}
 		} else {
 			Write-Verbose 'Query string collection not present...'
