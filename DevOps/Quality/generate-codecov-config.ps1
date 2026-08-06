@@ -146,6 +146,9 @@ $linesOut.Add('      - Source/Classes/**')
 $linesOut.Add('  private:')
 $linesOut.Add('    paths:')
 $linesOut.Add('      - Source/Private/**')
+$linesOut.Add('  public:')
+$linesOut.Add('    paths:')
+$linesOut.Add('      - Source/Public/**')
 
 $flagIds = @{}
 foreach ($folderName in $folderMappings.Keys) {

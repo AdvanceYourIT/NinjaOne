@@ -239,6 +239,14 @@ jobs:
           path: .artifacts/TestResults.private.xml
           reporter: java-junit
 
+      - name: Publish public test results
+        if: always()
+        uses: dorny/test-reporter@v3
+        with:
+          name: Pester Tests (Public)
+          path: .artifacts/TestResults.public.xml
+          reporter: java-junit
+
       - name: Publish docs test results
         if: always()
         uses: dorny/test-reporter@v3
@@ -255,6 +263,7 @@ jobs:
           path: |
             .artifacts/TestResults.core.xml
             .artifacts/TestResults.private.xml
+            .artifacts/TestResults.public.xml
             .artifacts/TestResults.docs.xml
 
       - name: Upload code coverage
@@ -265,6 +274,7 @@ jobs:
           path: |
             .artifacts/CodeCoverage.core.xml
             .artifacts/CodeCoverage.private.xml
+            .artifacts/CodeCoverage.public.xml
             .artifacts/CodeCoverage.docs.xml
 
       - name: Upload core coverage to Codecov
@@ -282,6 +292,15 @@ jobs:
         with:
           files: .artifacts/CodeCoverage.private.xml
           flags: private
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload public coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v6
+        with:
+          files: .artifacts/CodeCoverage.public.xml
+          flags: public
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -314,6 +333,18 @@ jobs:
           report_type: test_results
           flags: private
           name: pester-private
+          verbose: true
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload public test results to Codecov
+        if: always()
+        uses: codecov/codecov-action@v6
+        with:
+          files: .artifacts/TestResults.public.xml
+          report_type: test_results
+          flags: public
+          name: pester-public
           verbose: true
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
