@@ -23,6 +23,15 @@ BeforeAll {
 
 }
 
+Describe 'Codecov configuration generation' {
+	It 'reserves fixed flag identifiers before generating folder flags' {
+		$generatorPath = Join-Path -Path $PSScriptRoot -ChildPath '..\DevOps\Quality\generate-codecov-config.ps1'
+		$generatorContent = Get-Content -Path $generatorPath -Raw
+
+		$generatorContent | Should -Match '(?s)\$flagIds\s*=\s*@\{.*classes\s*=\s*\$true.*private\s*=\s*\$true.*public\s*=\s*\$true.*\}'
+	}
+}
+
 Describe ('{0} - Core Tests' -f $ModuleName) -Tags 'Module' {
     It 'Manifest is valid' {
         {
