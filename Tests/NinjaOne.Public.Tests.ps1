@@ -416,6 +416,34 @@ Describe 'Get-NinjaOneTicketBoards' {
 	}
 }
 
+Describe 'Get-NinjaOneTicketStatuses' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			@([pscustomobject]@{ id = 20; name = 'Open' })
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	It 'calls the ticket statuses endpoint and returns statuses' {
+		$result = Get-NinjaOneTicketStatuses
+
+		$result[0].name | Should -Be 'Open'
+		Assert-MockCalled -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq 'v2/ticketing/statuses'
+		}
+	}
+
+	It 'delegates no-result failures to New-NinjaOneError' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ Get-NinjaOneTicketStatuses } | Should -Throw '*No ticket statuses found*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
 Describe 'Get-NinjaOneBackupJobs' {
 	BeforeEach {
 		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
@@ -3474,6 +3502,1309 @@ Describe 'Set-NinjaOneContact' {
 		Mock -CommandName New-NinjaOnePATCHRequest -ModuleName $ModuleName -MockWith { throw 'update-contact-failed' }
 
 		{ Set-NinjaOneContact -id 123 -contact @{ phone = '+3100000000' } -Confirm:$false } | Should -Throw '*update-contact-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'Get-NinjaOneUserRoles' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource)
+			[pscustomobject]@{ resource = $Resource }
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	It 'gets user roles from the user roles endpoint' {
+		$result = Get-NinjaOneUserRoles
+
+		$result.resource | Should -Be 'v2/user/roles'
+		Assert-MockCalled -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq 'v2/user/roles'
+		}
+	}
+
+	It 'delegates GET failures to New-NinjaOneError' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'get-user-roles-failed' }
+
+		{ Get-NinjaOneUserRoles } | Should -Throw '*get-user-roles-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'Get-NinjaOneTags' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource)
+			[pscustomobject]@{ resource = $Resource }
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	It 'gets tags from the tags endpoint' {
+		$result = Get-NinjaOneTags
+
+		$result.resource | Should -Be 'v2/tag'
+		Assert-MockCalled -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq 'v2/tag'
+		}
+	}
+
+	It 'delegates GET failures to New-NinjaOneError' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'get-tags-failed' }
+
+		{ Get-NinjaOneTags } | Should -Throw '*get-tags-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'New-NinjaOneTab' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body)
+			[pscustomobject]@{
+				resource = $Resource
+				body = $Body
+			}
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	It 'posts the tab payload when confirmed' {
+		$payload = @{ name = 'Operations'; entityType = 'ORGANIZATION' }
+		$result = New-NinjaOneTab -tab $payload -Confirm:$false
+
+		$result.resource | Should -Be 'v2/tab'
+		$result.body.name | Should -Be 'Operations'
+		Assert-MockCalled -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq 'v2/tab' -and $Body.name -eq 'Operations'
+		}
+	}
+
+	It 'does not post the tab payload when WhatIf is used' {
+		New-NinjaOneTab -tab @{ name = 'Operations' } -WhatIf
+
+		Assert-MockCalled -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -Times 0
+	}
+
+	It 'delegates POST failures to New-NinjaOneError' {
+		Mock -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -MockWith { throw 'create-tab-failed' }
+
+		{ New-NinjaOneTab -tab @{ name = 'Operations' } -Confirm:$false } | Should -Throw '*create-tab-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'Set-NinjaOneTab' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOnePATCHRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body)
+			[pscustomobject]@{
+				resource = $Resource
+				body = $Body
+			}
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	It 'patches the tab payload to the specific tab endpoint when confirmed' {
+		$payload = @{ position = 2 }
+		$result = Set-NinjaOneTab -tabId 14 -tab $payload -Confirm:$false
+
+		$result.resource | Should -Be 'v2/tab/14'
+		$result.body.position | Should -Be 2
+		Assert-MockCalled -CommandName New-NinjaOnePATCHRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq 'v2/tab/14' -and $Body.position -eq 2
+		}
+	}
+
+	It 'does not patch the tab payload when WhatIf is used' {
+		Set-NinjaOneTab -tabId 14 -tab @{ position = 2 } -WhatIf
+
+		Assert-MockCalled -CommandName New-NinjaOnePATCHRequest -ModuleName $ModuleName -Times 0
+	}
+
+	It 'delegates PATCH failures to New-NinjaOneError' {
+		Mock -CommandName New-NinjaOnePATCHRequest -ModuleName $ModuleName -MockWith { throw 'update-tab-failed' }
+
+		{ Set-NinjaOneTab -tabId 14 -tab @{ position = 2 } -Confirm:$false } | Should -Throw '*update-tab-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'Remove-NinjaOneBillingAccount' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -MockWith {
+			param($Resource)
+			[pscustomobject]@{ resource = $Resource }
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+	It 'deletes the specific billing account when confirmed' {
+		$result = Remove-NinjaOneBillingAccount -id 27 -Confirm:$false
+
+		$result.resource | Should -Be 'v2/billing/accounts/27'
+		Assert-MockCalled -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq 'v2/billing/accounts/27'
+		}
+	}
+
+	It 'does not delete the billing account when WhatIf is used' {
+		Remove-NinjaOneBillingAccount -id 27 -WhatIf
+
+		Assert-MockCalled -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -Times 0
+	}
+
+	It 'delegates DELETE failures to New-NinjaOneError' {
+		Mock -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -MockWith { throw 'delete-billing-account-failed' }
+
+		{ Remove-NinjaOneBillingAccount -id 27 -Confirm:$false } | Should -Throw '*delete-billing-account-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+Describe 'Billing query functions' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $QSCollection)
+			[pscustomobject]@{
+				resource = $Resource
+				query = $QSCollection
+			}
+		}
+
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	$BillingQueryCases = @(
+		[pscustomobject]@{
+			Name = 'accounts'
+			InvokeCollection = { Get-NinjaOneBillingAccounts }
+			InvokeItem = { Get-NinjaOneBillingAccounts -id 11 }
+			CollectionResource = 'v2/billing/accounts'
+			ItemResource = 'v2/billing/accounts/11'
+			NoResultError = 'No billing accounts found.'
+		}
+		[pscustomobject]@{
+			Name = 'agreements'
+			InvokeCollection = { Get-NinjaOneBillingAgreements }
+			InvokeItem = { Get-NinjaOneBillingAgreements -id 12 }
+			CollectionResource = 'v2/billing/agreements'
+			ItemResource = 'v2/billing/agreements/12'
+			NoResultError = 'No billing agreements found.'
+		}
+		[pscustomobject]@{
+			Name = 'invoices'
+			InvokeCollection = { Get-NinjaOneBillingInvoices }
+			InvokeItem = { Get-NinjaOneBillingInvoices -id 13 }
+			CollectionResource = 'v2/billing/invoices'
+			ItemResource = 'v2/billing/invoices/13'
+			NoResultError = 'No billing invoices found.'
+		}
+		[pscustomobject]@{
+			Name = 'products'
+			InvokeCollection = { Get-NinjaOneBillingProducts }
+			InvokeItem = { Get-NinjaOneBillingProducts -id 14 }
+			CollectionResource = 'v2/billing/products'
+			ItemResource = 'v2/billing/products/14'
+			NoResultError = 'No billing products found.'
+		}
+	)
+
+	It 'gets the <Name> collection' -ForEach $BillingQueryCases {
+		$result = & $PSItem.InvokeCollection
+
+		$result.resource | Should -Be $PSItem.CollectionResource
+		Assert-MockCalled -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq $PSItem.CollectionResource
+		}
+	}
+
+	It 'gets a specific <Name> item and removes id from the query' -ForEach $BillingQueryCases {
+		$result = & $PSItem.InvokeItem
+
+		$result.resource | Should -Be $PSItem.ItemResource
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			-not $Parameters.ContainsKey('Id')
+		}
+		Assert-MockCalled -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq $PSItem.ItemResource
+		}
+	}
+
+	It 'delegates no-result errors for <Name>' -ForEach $BillingQueryCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ & $PSItem.InvokeCollection } | Should -Throw ('*{0}*' -f $PSItem.NoResultError)
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'delegates upstream API errors for <Name>' -ForEach $BillingQueryCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'billing-api-failed' }
+
+		{ & $PSItem.InvokeCollection } | Should -Throw '*billing-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+Describe 'Device detail query functions' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $QSCollection)
+			[pscustomobject]@{
+				resource = $Resource
+				query = $QSCollection
+			}
+		}
+
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	$DeviceDetailCases = @(
+		[pscustomobject]@{
+			Name = 'last logged on user'
+			Invoke = { Get-NinjaOneDeviceLastLoggedOnUser -deviceId 21 }
+			Resource = 'v2/device/21/last-logged-on-user'
+		}
+		[pscustomobject]@{
+			Name = 'OS patches'
+			Invoke = { Get-NinjaOneDeviceOSPatches -deviceId 22 -status 'APPROVED' -type 'SECURITY_UPDATES' -severity 'CRITICAL' }
+			Resource = 'v2/device/22/os-patches'
+		}
+		[pscustomobject]@{
+			Name = 'processors'
+			Invoke = { Get-NinjaOneDeviceProcessors -deviceId 23 }
+			Resource = 'v2/device/23/processors'
+		}
+		[pscustomobject]@{
+			Name = 'software patches'
+			Invoke = { Get-NinjaOneDeviceSoftwarePatches -deviceId 24 -status 'APPROVED' -type 'PATCH' -impact 'CRITICAL' }
+			Resource = 'v2/device/24/software-patches'
+		}
+		[pscustomobject]@{
+			Name = 'Windows services'
+			Invoke = { Get-NinjaOneDeviceWindowsServices -deviceId 25 -name 'NinjaRMMAgent' -state 'RUNNING' }
+			Resource = 'v2/device/25/windows-services'
+		}
+	)
+
+	It 'gets device <Name> and excludes deviceId from the query' -ForEach $DeviceDetailCases {
+		$result = & $PSItem.Invoke
+
+		$result.resource | Should -Be $PSItem.Resource
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			-not $Parameters.ContainsKey('deviceId')
+		}
+		Assert-MockCalled -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq $PSItem.Resource
+		}
+	}
+
+	It 'delegates upstream API errors for device <Name>' -ForEach $DeviceDetailCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'device-detail-api-failed' }
+
+		{ & $PSItem.Invoke } | Should -Throw '*device-detail-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'returns policy overrides without expansion by default' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			[pscustomobject]@{
+				id = 26
+				overrides = @('antivirus', 'patching')
+			}
+		}
+
+		$result = Get-NinjaOneDevicePolicyOverrides -deviceId 26
+
+		$result.id | Should -Be 26
+		$result.overrides | Should -HaveCount 2
+	}
+
+	It 'expands policy overrides when requested' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			[pscustomobject]@{
+				overrides = @('antivirus', 'patching')
+			}
+		}
+
+		$result = Get-NinjaOneDevicePolicyOverrides -deviceId 26 -expandOverrides
+
+		$result | Should -HaveCount 2
+		$result[0] | Should -Be 'antivirus'
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			-not $Parameters.ContainsKey('deviceId')
+		}
+	}
+
+	It 'delegates policy override API errors' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'policy-overrides-api-failed' }
+
+		{ Get-NinjaOneDevicePolicyOverrides -deviceId 26 } | Should -Throw '*policy-overrides-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'Custom field query functions' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $QSCollection)
+			[pscustomobject]@{
+				resource = $Resource
+				query = $QSCollection
+			}
+		}
+
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	$CustomFieldQueryCases = @(
+		[pscustomobject]@{
+			Name = 'document signed URLs'
+			Invoke = { Get-NinjaOneCustomFieldSignedURLs -clientDocumentId 31 }
+			Resource = 'v2/organization/document/31/signed-urls'
+			RemovedParameters = @('clientDocumentId')
+			NoResultError = 'No custom field signed URLs found for custom field 31.'
+		}
+		[pscustomobject]@{
+			Name = 'entity signed URLs'
+			Invoke = { Get-NinjaOneEntityCustomFieldsSignedURLs -entityType 'ORGANIZATION' -entityId 32 }
+			Resource = 'v2/custom-fields/entity-type/ORGANIZATION/32/signed-urls'
+			RemovedParameters = @('entityType', 'entityId')
+			NoResultError = 'No custom field signed URLs found for ORGANIZATION 32.'
+		}
+		[pscustomobject]@{
+			Name = 'location custom fields'
+			Invoke = { Get-NinjaOneLocationCustomFields -organisationId 33 -locationId 34 -withInheritance $true }
+			Resource = 'v2/organization/33/location/34/custom-fields'
+			RemovedParameters = @('organisationId', 'locationId')
+			NoResultError = 'No custom fields found for organisation 33 - location 34.'
+		}
+	)
+
+	It 'gets <Name> and excludes route parameters from the query' -ForEach $CustomFieldQueryCases {
+		$result = & $PSItem.Invoke
+
+		$result.resource | Should -Be $PSItem.Resource
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$ExpectedRemoved = $PSItem.RemovedParameters
+			-not ($ExpectedRemoved | Where-Object { $Parameters.ContainsKey($_) })
+		}
+		Assert-MockCalled -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq $PSItem.Resource
+		}
+	}
+
+	It 'delegates no-result errors for <Name>' -ForEach $CustomFieldQueryCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ & $PSItem.Invoke } | Should -Throw ('*{0}*' -f $PSItem.NoResultError)
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'delegates upstream errors for <Name>' -ForEach $CustomFieldQueryCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'custom-field-api-failed' }
+
+		{ & $PSItem.Invoke } | Should -Throw '*custom-field-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'gets paged custom field schema results' {
+		$result = Get-NinjaOneCustomFieldsSchema -cursorName 'next-page' -pageSize 25
+
+		$result.resource | Should -Be 'v2/custom-fields'
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Parameters.ContainsKey('cursorName') -and $Parameters.ContainsKey('pageSize')
+		}
+	}
+
+	It 'delegates custom field schema API errors' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'schema-api-failed' }
+
+		{ Get-NinjaOneCustomFieldsSchema } | Should -Throw '*schema-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'Get-NinjaOneGroupMembers' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $QSCollection)
+			[pscustomobject]@{
+				resource = $Resource
+				query = $QSCollection
+			}
+		}
+
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	It 'gets group members and excludes groupId from the query' {
+		$result = Get-NinjaOneGroupMembers -groupId 41 -refresh 'true'
+
+		$result.resource | Should -Be 'v2/group/41/device-ids'
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			-not $Parameters.ContainsKey('groupId') -and $Parameters.ContainsKey('refresh')
+		}
+	}
+
+	It 'delegates no-result errors' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ Get-NinjaOneGroupMembers -groupId 41 } | Should -Throw '*No group members found for group 41.*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'delegates upstream API errors' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'group-members-api-failed' }
+
+		{ Get-NinjaOneGroupMembers -groupId 41 } | Should -Throw '*group-members-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'Policy condition query functions' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $QSCollection)
+			[pscustomobject]@{
+				resource = $Resource
+				query = $QSCollection
+			}
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	$PolicyConditionCases = @(
+		[pscustomobject]@{
+			Name = 'custom field condition'
+			Invoke = { Get-NinjaOneCustomFieldsPolicyCondition -policyId 51 -conditionId 52 }
+			Resource = 'v2/policies/51/condition/custom-fields/52'
+			RemovedParameters = @('policyId', 'conditionId')
+		}
+		[pscustomobject]@{
+			Name = 'Windows event condition'
+			Invoke = { Get-NinjaOneWindowsEventPolicyCondition -policyId 53 -conditionId 54 }
+			Resource = 'v2/policies/53/condition/windows-event/54'
+			RemovedParameters = @('policyId', 'conditionId')
+		}
+	)
+
+	It 'gets a specific <Name> and excludes route parameters' -ForEach $PolicyConditionCases {
+		$result = & $PSItem.Invoke
+
+		$result.resource | Should -Be $PSItem.Resource
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$ExpectedRemoved = $PSItem.RemovedParameters
+			-not ($ExpectedRemoved | Where-Object { $Parameters.ContainsKey($_) })
+		}
+	}
+
+	It 'delegates upstream API errors for <Name>' -ForEach $PolicyConditionCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'policy-condition-api-failed' }
+
+		{ & $PSItem.Invoke } | Should -Throw '*policy-condition-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	$PolicyConditionCollectionCases = @(
+		[pscustomobject]@{
+			Name = 'custom field conditions'
+			Invoke = { Get-NinjaOneCustomFieldsPolicyConditions -policyId 55 }
+			Resource = 'v2/policies/55/condition/custom-fields'
+			NoResultError = 'No custom fields conditions found for policy 55.'
+		}
+		[pscustomobject]@{
+			Name = 'Windows event conditions'
+			Invoke = { Get-NinjaOneWindowsEventPolicyConditions -policyId 56 }
+			Resource = 'v2/policies/56/condition/windows-event'
+			NoResultError = 'No windows event conditions found for policy 56.'
+		}
+	)
+
+	It 'gets <Name> and excludes policyId from the query' -ForEach $PolicyConditionCollectionCases {
+		$result = & $PSItem.Invoke
+
+		$result.resource | Should -Be $PSItem.Resource
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			-not $Parameters.ContainsKey('policyId')
+		}
+	}
+
+	It 'delegates no-result errors for <Name>' -ForEach $PolicyConditionCollectionCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ & $PSItem.Invoke } | Should -Throw ('*{0}*' -f $PSItem.NoResultError)
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'delegates collection API errors for <Name>' -ForEach $PolicyConditionCollectionCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'policy-conditions-api-failed' }
+
+		{ & $PSItem.Invoke } | Should -Throw '*policy-conditions-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'Get-NinjaOneNodeRoles' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $QSCollection)
+			[pscustomobject]@{
+				resource = $Resource
+				query = $QSCollection
+			}
+		}
+
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	It 'gets assignable node roles' {
+		$result = Get-NinjaOneNodeRoles -isAssignable
+
+		$result.resource | Should -Be 'v2/noderole/list'
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Parameters.ContainsKey('isAssignable')
+		}
+	}
+
+	It 'delegates upstream API errors' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'node-roles-api-failed' }
+
+		{ Get-NinjaOneNodeRoles } | Should -Throw '*node-roles-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'Knowledge base query functions' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $QSCollection)
+			[pscustomobject]@{
+				resource = $Resource
+				query = $QSCollection
+			}
+		}
+
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	$KnowledgeBaseCollectionCases = @(
+		[pscustomobject]@{
+			Name = 'global articles'
+			Invoke = { Get-NinjaOneGlobalKnowledgeBaseArticles -articleName 'Runbook' }
+			Resource = 'v2/knowledgebase/global/articles'
+			ExpectedQueryParameters = @('articleName')
+		}
+		[pscustomobject]@{
+			Name = 'organisation articles'
+			Invoke = { Get-NinjaOneOrganisationKnowledgeBaseArticles -articleName 'Runbook' -organisationIds '61,62' }
+			Resource = 'v2/knowledgebase/organization/articles'
+			ExpectedQueryParameters = @('articleName', 'organisationIds')
+		}
+	)
+
+	It 'gets <Name> with expected query parameters' -ForEach $KnowledgeBaseCollectionCases {
+		$result = & $PSItem.Invoke
+
+		$result.resource | Should -Be $PSItem.Resource
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$ExpectedParameters = $PSItem.ExpectedQueryParameters
+			-not ($ExpectedParameters | Where-Object { -not $Parameters.ContainsKey($_) })
+		}
+	}
+
+	It 'delegates upstream API errors for <Name>' -ForEach $KnowledgeBaseCollectionCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'knowledge-base-api-failed' }
+
+		{ & $PSItem.Invoke } | Should -Throw '*knowledge-base-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'downloads a knowledge base article by default' {
+		$result = Get-NinjaOneKnowledgeBaseArticle -articleId 63
+
+		$result.resource | Should -Be 'v2/knowledgebase/article/63/download'
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			-not $Parameters.ContainsKey('articleId')
+		}
+	}
+
+	It 'gets signed URLs for a knowledge base article' {
+		$result = Get-NinjaOneKnowledgeBaseArticle -articleId 63 -signedUrls
+
+		$result.resource | Should -Be 'v2/knowledgebase/article/63/signed-urls'
+	}
+
+	It 'delegates knowledge base article API errors' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'article-api-failed' }
+
+		{ Get-NinjaOneKnowledgeBaseArticle -articleId 63 } | Should -Throw '*article-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'gets all knowledge base folders with filters' {
+		$result = Get-NinjaOneKnowledgeBaseFolders -folderPath 'Operations/Runbooks' -organisationId 64
+
+		$result.resource | Should -Be 'v2/knowledgebase/folder'
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			-not $Parameters.ContainsKey('folderId') -and
+			$Parameters.ContainsKey('folderPath') -and
+			$Parameters.ContainsKey('organisationId')
+		}
+	}
+
+	It 'gets a specific knowledge base folder' {
+		$result = Get-NinjaOneKnowledgeBaseFolders -folderId 65
+
+		$result.resource | Should -Be 'v2/knowledgebase/folder/65'
+	}
+
+	It 'delegates knowledge base folder API errors' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'folder-api-failed' }
+
+		{ Get-NinjaOneKnowledgeBaseFolders } | Should -Throw '*folder-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'Organisation and management query functions' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $QSCollection, $Raw)
+			[pscustomobject]@{
+				resource = $Resource
+				query = $QSCollection
+				raw = $Raw
+			}
+		}
+
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord, $Message)
+			if ($ErrorRecord) {
+				throw $ErrorRecord.Exception
+			}
+			throw $Message
+		}
+	}
+
+	It 'gets organisation devices with paging parameters' {
+		Mock -CommandName Get-NinjaOneDevices -ModuleName $ModuleName -MockWith {
+			param($organisationId, $after, $pageSize)
+			[pscustomobject]@{
+				organisationId = $organisationId
+				after = $after
+				pageSize = $pageSize
+			}
+		}
+
+		$result = Get-NinjaOneOrganisationDevices -organisationId 71 -after 10 -pageSize 25
+
+		$result.organisationId | Should -Be 71
+		$result.after | Should -Be 10
+		$result.pageSize | Should -Be 25
+	}
+
+	It 'delegates empty organisation device results' {
+		Mock -CommandName Get-NinjaOneDevices -ModuleName $ModuleName -MockWith { $null }
+
+		{ Get-NinjaOneOrganisationDevices -organisationId 71 } | Should -Throw "*parameter name 'Message'*"
+	}
+
+	It 'gets backup usage for all organisation locations' {
+		$result = Get-NinjaOneOrganisationLocationBackupUsage -organisationId 72
+
+		$result.resource | Should -Be 'v2/organization/72/locations/backup/usage'
+	}
+
+	It 'gets backup usage for a specific organisation location' {
+		$result = Get-NinjaOneOrganisationLocationBackupUsage -organisationId 72 -locationId 73
+
+		$result.resource | Should -Be 'v2/organization/72/locations/73/backup/usage'
+	}
+
+	It 'delegates organisation backup usage API errors' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'backup-usage-api-failed' }
+
+		{ Get-NinjaOneOrganisationLocationBackupUsage -organisationId 72 } | Should -Throw '*backup-usage-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'gets a raw device dashboard redirect' {
+		$result = Get-NinjaOneDeviceDashboardURL -deviceId 74 -redirect
+
+		$result.resource | Should -Be 'v2/device/74/dashboard-url'
+		$result.raw | Should -BeTrue
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			-not $Parameters.ContainsKey('deviceId')
+		}
+	}
+
+	It 'delegates empty dashboard URL results' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ Get-NinjaOneDeviceDashboardURL -deviceId 74 } | Should -Throw
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'gets an installer and excludes route parameters' {
+		$result = Get-NinjaOneInstaller -organisationId 75 -locationId 76 -installerType 'WINDOWS_MSI'
+
+		$result.resource | Should -Be 'v2/organization/75/location/76/installer/WINDOWS_MSI'
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			-not $Parameters.ContainsKey('organisationId') -and
+			-not $Parameters.ContainsKey('locationId') -and
+			-not $Parameters.ContainsKey('installerType')
+		}
+	}
+
+	It 'delegates installer API errors' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'installer-api-failed' }
+
+		{ Get-NinjaOneInstaller -organisationId 75 -locationId 76 -installerType 'WINDOWS_MSI' } | Should -Throw '*installer-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'Device management actions' {
+	BeforeEach {
+		Mock -CommandName Get-NinjaOneDevice -ModuleName $ModuleName -MockWith {
+			[pscustomobject]@{
+				id = 81
+				systemName = 'WORKSTATION-81'
+			}
+		}
+
+		Mock -CommandName Get-NinjaOneDeviceWindowsServices -ModuleName $ModuleName -MockWith {
+			[pscustomobject]@{
+				displayName = 'Print Spooler'
+			}
+		}
+		Mock -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -MockWith { 204 }
+		Mock -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -MockWith { 204 }
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	It 'restarts a device with a reason when confirmed' {
+		Restart-NinjaOneDevice -deviceId 81 -mode 'FORCED' -reason 'Maintenance' -Confirm:$false
+
+		Assert-MockCalled -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq 'v2/device/81/reboot/FORCED' -and $Body.reason -eq 'Maintenance'
+		}
+	}
+
+	It 'does not restart a device when WhatIf is used' {
+		Restart-NinjaOneDevice -deviceId 81 -mode 'NORMAL' -WhatIf
+
+		Assert-MockCalled -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -Times 0
+	}
+
+	It 'delegates restart API errors' {
+		Mock -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -MockWith { throw 'restart-api-failed' }
+
+		{ Restart-NinjaOneDevice -deviceId 81 -mode 'NORMAL' -Confirm:$false } | Should -Throw '*restart-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'resets device policy overrides when confirmed' {
+		Reset-NinjaOneDevicePolicyOverrides -deviceId 81 -Confirm:$false
+
+		Assert-MockCalled -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq 'v2/device/81/policy/overrides'
+		}
+	}
+
+	It 'delegates missing devices when resetting policy overrides' {
+		Mock -CommandName Get-NinjaOneDevice -ModuleName $ModuleName -MockWith { $null }
+
+		{ Reset-NinjaOneDevicePolicyOverrides -deviceId 81 -Confirm:$false } | Should -Throw '*Device with id 81 not found.*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'invokes a Windows service action when confirmed' {
+		Invoke-NinjaOneWindowsServiceAction -deviceId 81 -serviceId 'Spooler' -action 'RESTART' -Confirm:$false
+
+		Assert-MockCalled -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq 'v2/device/81/windows-service/Spooler/control' -and $Body.action -eq 'RESTART'
+		}
+	}
+
+	It 'delegates missing Windows services' {
+		Mock -CommandName Get-NinjaOneDeviceWindowsServices -ModuleName $ModuleName -MockWith { $null }
+
+		{ Invoke-NinjaOneWindowsServiceAction -deviceId 81 -serviceId 'Missing' -action 'START' -Confirm:$false } | Should -Throw '*Service with id Missing not found.*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'delegates missing devices for Windows service actions' {
+		Mock -CommandName Get-NinjaOneDevice -ModuleName $ModuleName -MockWith { $null }
+
+		{ Invoke-NinjaOneWindowsServiceAction -deviceId 81 -serviceId 'Spooler' -action 'START' -Confirm:$false } | Should -Throw '*Device with id 81 not found.*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'does not invoke a Windows service action when WhatIf is used' {
+		Invoke-NinjaOneWindowsServiceAction -deviceId 81 -serviceId 'Spooler' -action 'STOP' -WhatIf
+
+		Assert-MockCalled -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -Times 0
+	}
+}
+
+Describe 'Additional public API coverage' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $QSCollection)
+			[pscustomobject]@{
+				resource = $Resource
+				query = $QSCollection
+			}
+		}
+
+		Mock -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body)
+			[pscustomobject]@{ method = 'post'; resource = $Resource; body = $Body }
+		}
+		Mock -CommandName New-NinjaOnePUTRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body)
+			[pscustomobject]@{ method = 'put'; resource = $Resource; body = $Body }
+		}
+		Mock -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $QSCollection)
+			[pscustomobject]@{ method = 'delete'; resource = $Resource; query = $QSCollection }
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	It 'gets all asset relationships' {
+		$result = Get-NinjaOneAssetRelationships
+
+		$result.resource | Should -Be 'v2/itam/asset-relationship/relations'
+	}
+
+	It 'gets asset relationships for a specific entity' {
+		$result = Get-NinjaOneAssetRelationships -entityType 'DEVICE' -entityId 91
+
+		$result.resource | Should -Be 'v2/itam/asset-relationship/DEVICE/91/relations'
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			-not $Parameters.ContainsKey('EntityType') -and -not $Parameters.ContainsKey('EntityId')
+		}
+	}
+
+	It 'delegates empty asset relationship results' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ Get-NinjaOneAssetRelationships } | Should -Throw '*No asset relationships found.*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'gets billing products for a ticket' {
+		$result = Get-NinjaOneBillingTicketProducts -ticketId 92
+
+		$result.resource | Should -Be 'v2/billing/ticket-products/ticket/92'
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			-not $Parameters.ContainsKey('TicketId')
+		}
+	}
+
+	It 'delegates empty billing ticket product results' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ Get-NinjaOneBillingTicketProducts -ticketId 92 } | Should -Throw '*No billing ticket products found for ticket 92.*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'creates custom fields in bulk' {
+		$result = Invoke-NinjaOneCustomFieldsBulk -operation 'create' -customFields @(@{ name = 'Region' }) -Confirm:$false
+
+		$result.method | Should -Be 'post'
+		$result.resource | Should -Be 'v2/custom-fields/bulk'
+	}
+
+	It 'updates custom fields in bulk' {
+		$result = Invoke-NinjaOneCustomFieldsBulk -operation 'update' -customFields @(@{ name = 'Region'; label = 'Office Region' }) -Confirm:$false
+
+		$result.method | Should -Be 'put'
+		$result.body[0].label | Should -Be 'Office Region'
+	}
+
+	It 'surfaces the current delete request parameter mismatch' {
+		{ Invoke-NinjaOneCustomFieldsBulk -operation 'delete' -fieldNames @('Region', 'Floor') -Confirm:$false } |
+			Should -Throw "*parameter name 'QSCollection'*"
+	}
+
+	It 'does not execute bulk custom field operations with WhatIf' {
+		Invoke-NinjaOneCustomFieldsBulk -operation 'create' -customFields @(@{ name = 'Region' }) -WhatIf
+
+		Assert-MockCalled -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -Times 0
+	}
+}
+
+Describe 'Additional public query coverage' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $QSCollection)
+			[pscustomobject]@{ resource = $Resource; query = $QSCollection }
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+
+	$SimpleQueryCases = @(
+		[pscustomobject]@{
+			Name = 'asset relationship types'
+			Invoke = { Get-NinjaOneAssetRelationshipTypes }
+			Resource = 'v2/itam/asset-relationship/types'
+			NoResultError = 'No asset relationship types found.'
+		}
+		[pscustomobject]@{
+			Name = 'software licenses'
+			Invoke = { Get-NinjaOneSoftwareLicenses }
+			Resource = 'v2/software-license/licenses'
+			NoResultError = 'No software licenses found.'
+		}
+		[pscustomobject]@{
+			Name = 'contacts'
+			Invoke = { Get-NinjaOneContacts }
+			Resource = 'v2/contacts'
+			NoResultError = 'No contacts found.'
+		}
+	)
+
+	It 'gets <Name>' -ForEach $SimpleQueryCases {
+		$result = & $PSItem.Invoke
+
+		$result.resource | Should -Be $PSItem.Resource
+	}
+
+	It 'delegates empty results for <Name>' -ForEach $SimpleQueryCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ & $PSItem.Invoke } | Should -Throw ('*{0}*' -f $PSItem.NoResultError)
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'delegates API errors for <Name>' -ForEach $SimpleQueryCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'simple-query-api-failed' }
+
+		{ & $PSItem.Invoke } | Should -Throw '*simple-query-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'searches devices with query and limit parameters' {
+		$result = Find-NinjaOneDevices -searchQuery 'WORKSTATION' -limit 10
+
+		$result.resource | Should -Be 'v2/devices/search'
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Parameters.ContainsKey('searchQuery') -and $Parameters.ContainsKey('limit')
+		}
+	}
+
+	It 'delegates device search API errors' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'device-search-api-failed' }
+
+		{ Find-NinjaOneDevices -searchQuery 'WORKSTATION' } | Should -Throw '*device-search-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'Scripting options and document templates' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $QSCollection)
+			[pscustomobject]@{
+				resource = $Resource
+				categories = @('Maintenance', 'Security')
+				scripts = @('Patch Devices', 'Collect Logs')
+			}
+		}
+
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	It 'returns full device scripting options by default' {
+		$result = Get-NinjaOneDeviceScriptingOptions -deviceId 101 -languageTag 'en-US'
+
+		$result.resource | Should -Be 'v2/device/101/scripting/options'
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			-not $Parameters.ContainsKey('deviceId') -and $Parameters.ContainsKey('languageTag')
+		}
+	}
+
+	It 'returns scripting categories only' {
+		$result = Get-NinjaOneDeviceScriptingOptions -deviceId 101 -categories
+
+		$result | Should -HaveCount 2
+		$result[0] | Should -Be 'Maintenance'
+	}
+
+	It 'returns scripts only' {
+		$result = Get-NinjaOneDeviceScriptingOptions -deviceId 101 -scripts
+
+		$result | Should -HaveCount 2
+		$result[0] | Should -Be 'Patch Devices'
+	}
+
+	It 'delegates empty scripting option results' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ Get-NinjaOneDeviceScriptingOptions -deviceId 101 } | Should -Throw
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'gets all document templates' {
+		$result = Get-NinjaOneDocumentTemplates
+
+		$result.resource | Should -Be 'v2/document-templates'
+	}
+
+	It 'delegates missing document templates' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'template-api-failed' }
+
+		{ Get-NinjaOneDocumentTemplates } | Should -Throw '*No document templates found.*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'End user and removal operations' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body, $QSCollection)
+			[pscustomobject]@{ resource = $Resource; body = $Body; query = $QSCollection }
+		}
+		Mock -CommandName New-NinjaOnePATCHRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body)
+			[pscustomobject]@{ resource = $Resource; body = $Body }
+		}
+		Mock -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -MockWith { 204 }
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+
+	It 'creates an end user and passes invitation options in the query' {
+		$result = New-NinjaOneEndUser -endUser @{ firstName = 'Jane'; email = 'jane@example.com' } -sendInvitation -Confirm:$false
+
+		$result.resource | Should -Be 'v2/user/end-users'
+		$result.body.firstName | Should -Be 'Jane'
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			-not $Parameters.ContainsKey('endUser') -and $Parameters.ContainsKey('sendInvitation')
+		}
+	}
+
+	It 'does not create an end user when WhatIf is used' {
+		New-NinjaOneEndUser -endUser @{ firstName = 'Jane' } -WhatIf
+
+		Assert-MockCalled -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -Times 0
+	}
+
+	It 'updates end user device access' {
+		$result = Set-NinjaOneEndUserDeviceAccess -id 111 -addDeviceIds 1, 2 -removeDeviceIds 3 -Confirm:$false
+
+		$result.resource | Should -Be 'v2/user/end-user/111/device-access'
+		$result.body.addDeviceIds | Should -HaveCount 2
+		$result.body.removeDeviceIds[0] | Should -Be 3
+	}
+
+	It 'requires an end user device access change' {
+		{ Set-NinjaOneEndUserDeviceAccess -id 111 -Confirm:$false } | Should -Throw '*Specify at least one*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'surfaces the current tab delete request parameter mismatch' {
+		{ Remove-NinjaOneTab -tabId 112 -Confirm:$false } | Should -Throw "*parameter name 'QSCollection'*"
+	}
+
+	It 'removes the webhook configuration default route' {
+		Remove-NinjaOneWebhook -Confirm:$false
+
+		Assert-MockCalled -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq 'v2/webhook'
+		}
+	}
+
+	It 'removes a specific webhook route' {
+		Remove-NinjaOneWebhook -webhookId 'hook-113' -Confirm:$false
+
+		Assert-MockCalled -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq 'v2/webhook/hook-113'
+		}
+	}
+}
+
+Describe 'Attachment, backup, and document operations' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $QSCollection)
+			[pscustomobject]@{ resource = $Resource; query = $QSCollection }
+		}
+		Mock -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body, $UseMultipart)
+			[pscustomobject]@{
+				resource = $Resource
+				body = $Body
+				useMultipart = $UseMultipart
+				jobUid = 'job-121'
+			}
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	It 'creates and returns an attachment relation' {
+		$result = New-NinjaOneAttachmentRelation -entityType 'ORGANIZATION' -entityId 121 -attachmentRelation @{ name = 'contract.pdf' } -show -Confirm:$false
+
+		$result.resource | Should -Be 'v2/related-items/entity/ORGANIZATION/121/attachment'
+		$result.useMultipart | Should -BeTrue
+	}
+
+	It 'delegates attachment relation API errors' {
+		Mock -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -MockWith { throw 'attachment-api-failed' }
+
+		{ New-NinjaOneAttachmentRelation -entityType 'ORGANIZATION' -entityId 121 -attachmentRelation @{} -Confirm:$false } |
+			Should -Throw '*attachment-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'does not create an attachment relation with WhatIf' {
+		New-NinjaOneAttachmentRelation -entityType 'ORGANIZATION' -entityId 121 -attachmentRelation @{} -WhatIf
+
+		Assert-MockCalled -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -Times 0
+	}
+
+	It 'creates an integrity check job from individual parameters' {
+		$planUid = [guid]'00000000-0000-0000-0000-000000000122'
+		$result = New-NinjaOneIntegrityCheckJob -deviceId 122 -planUid $planUid -show -Confirm:$false
+
+		$result.resource | Should -Be 'v2/backups/integrity-check-jobs'
+		$result.body.deviceId | Should -Be 122
+		$result.body.planUid | Should -Be $planUid
+	}
+
+	It 'creates an integrity check job from a body' {
+		$body = @{ deviceId = 123; planUid = [guid]'00000000-0000-0000-0000-000000000123' }
+		$result = New-NinjaOneIntegrityCheckJob -integrityCheckJob $body -show -Confirm:$false
+
+		$result.body.deviceId | Should -Be 123
+	}
+
+	It 'does not create an integrity check job with WhatIf' {
+		$body = @{ deviceId = 123; planUid = [guid]'00000000-0000-0000-0000-000000000123' }
+
+		New-NinjaOneIntegrityCheckJob -integrityCheckJob $body -WhatIf
+
+		Assert-MockCalled -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -Times 0
+	}
+
+	It 'delegates integrity check job API errors' {
+		Mock -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -MockWith { throw 'integrity-job-api-failed' }
+		$body = @{ deviceId = 123; planUid = [guid]'00000000-0000-0000-0000-000000000123' }
+
+		{ New-NinjaOneIntegrityCheckJob -integrityCheckJob $body -Confirm:$false } | Should -Throw '*integrity-job-api-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'gets organisation document signed URLs' {
+		$result = Get-NinjaOneOrganisationDocumentSignedURLs -clientDocumentId 124
+
+		$result.resource | Should -Be 'v2/organization/document/124/signed-urls'
+		Assert-MockCalled -CommandName New-NinjaOneQuery -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			-not $Parameters.ContainsKey('clientDocumentId')
+		}
+	}
+
+	It 'delegates empty organisation document signed URL results' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ Get-NinjaOneOrganisationDocumentSignedURLs -clientDocumentId 124 } | Should -Throw '*No organisation document signed URLs found*'
 		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
 	}
 }
