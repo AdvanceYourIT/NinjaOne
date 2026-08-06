@@ -144,18 +144,15 @@ function Get-NinjaOneDevices {
 			if ($parseDateTime) {
 				$RequestParams.ParseDateTime = $parseDateTime
 			}
-			try {
-				$DeviceResults = New-NinjaOneGETRequest @RequestParams
-				return $DeviceResults
-			} catch {
-				if (-not $DeviceResults) {
-					if ($deviceId) {
-						throw ('Device with id {0} not found.' -f $deviceId)
-					} else {
-						throw 'No devices found.'
-					}
+			$DeviceResults = New-NinjaOneGETRequest @RequestParams
+			if (-not $DeviceResults) {
+				if ($deviceId) {
+					throw ('Device with id {0} not found.' -f $deviceId)
+				} else {
+					throw 'No devices found.'
 				}
 			}
+			return $DeviceResults
 		} catch {
 			New-NinjaOneError -ErrorRecord $_
 		}

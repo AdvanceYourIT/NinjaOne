@@ -93,18 +93,15 @@ function Get-NinjaOneOrganisations {
 					QSCollection = $QSCollection
 				}
 			}
-			try {
-				$OrganisationResults = New-NinjaOneGETRequest @RequestParams
-				return $OrganisationResults
-			} catch {
-				if (-not $OrganisationResults) {
-					if ($organisationId) {
-						throw ('Organisation with id {0} not found.' -f $organisationId)
-					} else {
-						throw 'No organisations found.'
-					}
+			$OrganisationResults = New-NinjaOneGETRequest @RequestParams
+			if (-not $OrganisationResults) {
+				if ($organisationId) {
+					throw ('Organisation with id {0} not found.' -f $organisationId)
+				} else {
+					throw 'No organisations found.'
 				}
 			}
+			return $OrganisationResults
 		} catch {
 			New-NinjaOneError -ErrorRecord $_
 		}

@@ -3051,7 +3051,7 @@ Describe 'Invoke-NinjaOnePreFlightCheck' {
 			$module = Get-Module -Name $ModuleName
 			& $module {
 				$script:NRAPIConnectionInformation = @{ URL = 'https://test.com' }
-				$script:NRAPIAuthToken = 'test-token'
+				$script:NRAPIAuthenticationInformation = @{ Access = 'test-token' }
 				{ Invoke-NinjaOnePreFlightCheck } | Should -Not -Throw
 			}
 		}
@@ -3068,7 +3068,7 @@ Describe 'Invoke-NinjaOnePreFlightCheck' {
 			$module = Get-Module -Name $ModuleName
 			& $module {
 				$script:NRAPIConnectionInformation = @{ URL = 'https://test.com' }
-				$script:NRAPIAuthToken = 'test-token'
+				$script:NRAPIAuthenticationInformation = @{ Access = 'test-token' }
 				{ Invoke-NinjaOnePreFlightCheck } | Should -Not -Throw
 			}
 		}
@@ -3077,9 +3077,26 @@ Describe 'Invoke-NinjaOnePreFlightCheck' {
 			$module = Get-Module -Name $ModuleName
 			& $module {
 				$script:NRAPIConnectionInformation = @{ URL = 'https://test.com' }
-				$script:NRAPIAuthToken = $null
-				$script:AllowAnonymous = $null
+				$script:NRAPIAuthenticationInformation = $null
 				{ Invoke-NinjaOnePreFlightCheck } | Should -Throw
+			}
+		}
+
+		It 'should throw when authentication information does not include an access token' {
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				$script:NRAPIConnectionInformation = @{ URL = 'https://test.com' }
+				$script:NRAPIAuthenticationInformation = @{}
+				{ Invoke-NinjaOnePreFlightCheck } | Should -Throw '*Missing NinjaOne authentication token*'
+			}
+		}
+
+		It 'should throw when authentication access token is empty' {
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				$script:NRAPIConnectionInformation = @{ URL = 'https://test.com' }
+				$script:NRAPIAuthenticationInformation = @{ Access = '' }
+				{ Invoke-NinjaOnePreFlightCheck } | Should -Throw '*Missing NinjaOne authentication token*'
 			}
 		}
 
@@ -3091,7 +3108,7 @@ Describe 'Invoke-NinjaOnePreFlightCheck' {
 					Instance = 'test.ninjaone.com'
 					AuthMode = 'OAuth'
 				}
-				$script:NRAPIAuthToken = 'test-token'
+				$script:NRAPIAuthenticationInformation = @{ Access = 'test-token' }
 				{ Invoke-NinjaOnePreFlightCheck } | Should -Not -Throw
 			}
 		}
@@ -3100,8 +3117,7 @@ Describe 'Invoke-NinjaOnePreFlightCheck' {
 			$module = Get-Module -Name $ModuleName
 			& $module {
 				$script:NRAPIConnectionInformation = @{ URL = 'https://test.com' }
-				$script:NRAPIAuthToken = $null
-				$script:AllowAnonymous = $null
+				$script:NRAPIAuthenticationInformation = $null
 				{ Invoke-NinjaOnePreFlightCheck } | Should -Throw
 			}
 		}
@@ -3110,9 +3126,81 @@ Describe 'Invoke-NinjaOnePreFlightCheck' {
 			$module = Get-Module -Name $ModuleName
 			& $module {
 				$script:NRAPIConnectionInformation = $null
-				$script:NRAPIAuthToken = $null
+				$script:NRAPIAuthenticationInformation = $null
 				{ Invoke-NinjaOnePreFlightCheck -SkipConnectionChecks } | Should -Not -Throw
 			}
+		}
+	}
+}
+
+Describe 'Invoke-NinjaOneRequest' {
+	Context 'Preflight enforcement' {
+		It 'should invoke the shared preflight check before making a request' {
+			Mock -CommandName Invoke-NinjaOnePreFlightCheck -ModuleName $ModuleName -MockWith {}
+			Mock -CommandName Invoke-WebRequest -ModuleName $ModuleName -MockWith {
+				[pscustomobject]@{
+					StatusCode = 200
+					Content = '{"result":{}}'
+					Headers = @{}
+				}
+			}
+
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				$script:NRAPIConnectionInformation = @{ URL = 'https://test.com' }
+				$script:NRAPIAuthenticationInformation = @{
+					Type = 'Bearer'
+					Access = 'test-token'
+					Expires = (Get-Date).AddMinutes(30)
+				}
+
+				$null = Invoke-NinjaOneRequest -Method 'GET' -Uri 'https://test.com/v2/test'
+			}
+
+			Assert-MockCalled -CommandName Invoke-NinjaOnePreFlightCheck -ModuleName $ModuleName -Times 1
+		}
+
+		It 'should stop before request execution when preflight fails' {
+			Mock -CommandName Invoke-NinjaOnePreFlightCheck -ModuleName $ModuleName -MockWith {
+				throw [System.Exception]::new('preflight failure')
+			}
+			Mock -CommandName Invoke-WebRequest -ModuleName $ModuleName -MockWith {
+				throw [System.Exception]::new('request should not run')
+			}
+
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				{ Invoke-NinjaOneRequest -Method 'GET' -Uri 'https://test.com/v2/test' } | Should -Throw '*preflight failure*'
+			}
+
+			Assert-MockCalled -CommandName Invoke-WebRequest -ModuleName $ModuleName -Times 0
+		}
+
+		It 'should not refresh token when expiry is missing' {
+			Mock -CommandName Invoke-NinjaOnePreFlightCheck -ModuleName $ModuleName -MockWith {}
+			Mock -CommandName Update-NinjaOneToken -ModuleName $ModuleName -MockWith {
+				throw [System.Exception]::new('refresh should not run')
+			}
+			Mock -CommandName Invoke-WebRequest -ModuleName $ModuleName -MockWith {
+				[pscustomobject]@{
+					StatusCode = 200
+					Content = '{"result":{}}'
+					Headers = @{}
+				}
+			}
+
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				$script:NRAPIConnectionInformation = @{ URL = 'https://test.com' }
+				$script:NRAPIAuthenticationInformation = @{
+					Type = 'Bearer'
+					Access = 'test-token'
+				}
+
+				{ Invoke-NinjaOneRequest -Method 'GET' -Uri 'https://test.com/v2/test' } | Should -Not -Throw
+			}
+
+			Assert-MockCalled -CommandName Update-NinjaOneToken -ModuleName $ModuleName -Times 0
 		}
 	}
 }

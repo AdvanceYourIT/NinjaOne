@@ -83,18 +83,15 @@ function Get-NinjaOneAlerts {
 			if ($parseDateTime) {
 				$RequestParams.ParseDateTime = $parseDateTime
 			}
-			try {
-				$AlertResults = New-NinjaOneGETRequest @RequestParams
-				return $AlertResults
-			} catch {
-				if (-not $AlertResults) {
-					if ($deviceId) {
-						throw ('No alerts found for device {0}.' -f $deviceId)
-					} else {
-						throw 'No alerts found.'
-					}
+			$AlertResults = New-NinjaOneGETRequest @RequestParams
+			if (-not $AlertResults) {
+				if ($deviceId) {
+					throw ('No alerts found for device {0}.' -f $deviceId)
+				} else {
+					throw 'No alerts found.'
 				}
 			}
+			return $AlertResults
 		} catch {
 			New-NinjaOneError -ErrorRecord $_
 		}

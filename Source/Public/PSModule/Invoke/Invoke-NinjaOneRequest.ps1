@@ -48,14 +48,10 @@ function Invoke-NinjaOneRequest {
 
 	)
 	begin {
-		if ($null -eq $Script:NRAPIConnectionInformation) {
-			throw "Missing NinjaOne connection information, please run 'Connect-NinjaOne' first."
-		}
-		if ($null -eq $Script:NRAPIAuthenticationInformation) {
-			throw "Missing NinjaOne authentication tokens, please run 'Connect-NinjaOne' first."
-		}
+		Invoke-NinjaOnePreFlightCheck
 		$Now = Get-Date
-		if ($Script:NRAPIAuthenticationInformation.Expires -le $Now) {
+		$TokenExpiry = $Script:NRAPIAuthenticationInformation.Expires
+		if (($TokenExpiry -is [DateTime]) -and ($TokenExpiry -le $Now)) {
 			Write-Verbose 'The auth token has expired, renewing.'
 			Update-NinjaOneToken -Verbose:$VerbosePreference
 		}

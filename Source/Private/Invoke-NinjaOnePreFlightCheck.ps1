@@ -29,7 +29,12 @@ function Invoke-NinjaOnePreFlightCheck {
 			$ErrorRecord = [ErrorRecord]::New($NoConnectionInformationException, 'NoConnectionInformation', 'AuthenticationError', 'NinjaOnePreFlightCheck')
 			$PSCmdlet.throwTerminatingError($ErrorRecord)
 		}
-		if (($null -eq $Script:NRAPIAuthToken) -and ($null -eq $AllowAnonymous)) {
+		if ($null -eq $Script:NRAPIAuthenticationInformation) {
+			$NoAuthTokenException = [System.Exception]::New("Missing NinjaOne authentication token, please run 'Connect-NinjaOne' first.")
+			$ErrorRecord = [ErrorRecord]::New($NoAuthTokenException, 'NoAuthToken', 'AuthenticationError', 'NinjaOnePreFlightCheck')
+			$PSCmdlet.throwTerminatingError($ErrorRecord)
+		}
+		if ([String]::IsNullOrWhiteSpace([String]$Script:NRAPIAuthenticationInformation.Access)) {
 			$NoAuthTokenException = [System.Exception]::New("Missing NinjaOne authentication token, please run 'Connect-NinjaOne' first.")
 			$ErrorRecord = [ErrorRecord]::New($NoAuthTokenException, 'NoAuthToken', 'AuthenticationError', 'NinjaOnePreFlightCheck')
 			$PSCmdlet.throwTerminatingError($ErrorRecord)
