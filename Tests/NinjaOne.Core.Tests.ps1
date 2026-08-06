@@ -28,7 +28,7 @@ Describe 'Codecov configuration generation' {
 		$generatorPath = Join-Path -Path $PSScriptRoot -ChildPath '..\DevOps\Quality\generate-codecov-config.ps1'
 		$generatorContent = Get-Content -Path $generatorPath -Raw
 
-		$generatorContent | Should -Match '(?s)\$flagIds\s*=\s*@\{.*classes\s*=\s*\$true.*private\s*=\s*\$true.*public\s*=\s*\$true.*\}'
+		$generatorContent | Should -Match '(?s)\$flagIds\s*=\s*@\{\s*(?=.*\bclasses\s*=\s*\$true)(?=.*\bprivate\s*=\s*\$true)(?=.*\bpublic\s*=\s*\$true).*?\}\s*foreach\s*\(\$folderName\s+in\s+\$folderMappings\.Keys\)'
 	}
 }
 
