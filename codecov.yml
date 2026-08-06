@@ -8,6 +8,9 @@ flags:
   private:
     paths:
       - Source/Private/**
+  public:
+    paths:
+      - Source/Public/**
   backup:
     paths:
       - 'Source/Public/Backup/**'
@@ -936,6 +939,7 @@ component_management:
       name: 'Functionality: Software License Assignments'
       paths:
         - Source/Public/ITAM/Get/Get-NinjaOneSoftwareLicenseAssignments.ps1
+        - Source/Public/ITAM/Set/Set-NinjaOneSoftwareLicenseAssignmentsLastUsage.ps1
     - component_id: func_software_licenses
       name: 'Functionality: Software Licenses'
       paths:
@@ -976,6 +980,10 @@ component_management:
       name: 'Functionality: Tab End User Order'
       paths:
         - Source/Public/Tabs/Set/Set-NinjaOneTabEndUserOrder.ps1
+    - component_id: func_tab_global_order
+      name: 'Functionality: Tab Global Order'
+      paths:
+        - Source/Public/Tabs/Set/Set-NinjaOneTabGlobalOrder.ps1
     - component_id: func_tab_organisation
       name: 'Functionality: Tab Organisation'
       paths:
@@ -1000,6 +1008,10 @@ component_management:
       name: 'Functionality: Tab Summary End User'
       paths:
         - Source/Public/Tabs/Get/Get-NinjaOneTabSummaryEndUser.ps1
+    - component_id: func_tab_summary_global
+      name: 'Functionality: Tab Summary Global'
+      paths:
+        - Source/Public/Tabs/Get/Get-NinjaOneTabSummaryGlobal.ps1
     - component_id: func_tab_summary_organisation
       name: 'Functionality: Tab Summary Organisation'
       paths:
@@ -1088,6 +1100,10 @@ component_management:
       paths:
         - Source/Public/Users/Add/Add-NinjaOneUserRoleMembers.ps1
         - Source/Public/Users/Remove/Remove-NinjaOneUserRoleMembers.ps1
+    - component_id: func_user_role_permissions
+      name: 'Functionality: User Role Permissions'
+      paths:
+        - Source/Public/Users/Set/Set-NinjaOneUserRoleOrganizationPermissions.ps1
     - component_id: func_user_roles
       name: 'Functionality: User Roles'
       paths:
