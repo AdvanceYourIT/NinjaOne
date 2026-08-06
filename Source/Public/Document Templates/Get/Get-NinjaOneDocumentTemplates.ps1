@@ -45,11 +45,8 @@ function Get-NinjaOneDocumentTemplates {
 		try {
 			if ($documentTemplateId) {
 				Write-Verbose 'Getting document template from NinjaOne API.'
-				$DocumentTemplate = Get-NinjaOneDocumentTemplates -documentTemplateId $documentTemplateId
-				if ($DocumentTemplate) {
-					Write-Verbose ('Getting document template with id {0}.' -f $documentTemplateId)
-					$Resource = ('v2/document-templates/{0}' -f $documentTemplateId)
-				}
+				Write-Verbose ('Getting document template with id {0}.' -f $documentTemplateId)
+				$Resource = ('v2/document-templates/{0}' -f $documentTemplateId)
 			} else {
 				Write-Verbose 'Retrieving all document templates.'
 				$Resource = 'v2/document-templates'
@@ -58,16 +55,14 @@ function Get-NinjaOneDocumentTemplates {
 				Resource = $Resource
 				QSCollection = $QSCollection
 			}
-			try {
-				$DocumentTemplateResults = New-NinjaOneGETRequest @RequestParams
+			$DocumentTemplateResults = New-NinjaOneGETRequest @RequestParams
+			if ($DocumentTemplateResults) {
 				return $DocumentTemplateResults
-			} catch {
-				if (-not $DocumentTemplateResults) {
-					if ($documentTemplateId) {
-						throw ('Document template with id {0} not found.' -f $documentTemplateId)
-					} else {
-						throw 'No document templates found.'
-					}
+			} else {
+				if ($documentTemplateId) {
+					throw ('Document template with id {0} not found.' -f $documentTemplateId)
+				} else {
+					throw 'No document templates found.'
 				}
 			}
 		} catch {

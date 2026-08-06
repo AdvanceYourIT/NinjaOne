@@ -46,7 +46,7 @@ function New-NinjaOneIntegrityCheckJob {
 	)
 	process {
 		try {
-			$Resource = 'v2/backups/integrity-check-jobs'
+			$Resource = 'v2/backup/integrity-check-jobs'
 			if ($PSCmdlet.ParameterSetName -eq 'Body') {
 				$Body = $integrityCheckJob
 			} else {
@@ -72,8 +72,6 @@ function New-NinjaOneIntegrityCheckJob {
 		}
 	}
 }
-
-
 
 
 

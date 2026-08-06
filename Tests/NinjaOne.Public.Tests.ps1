@@ -4543,6 +4543,14 @@ Describe 'Additional public API coverage' {
 		$result.body[0].label | Should -Be 'Office Region'
 	}
 
+	It 'deletes custom fields in bulk' {
+		$result = Invoke-NinjaOneCustomFieldsBulk -operation 'delete' -fieldNames @('Region', 'Floor') -Confirm:$false
+
+		$result.method | Should -Be 'delete'
+		$result.resource | Should -Be 'v2/custom-fields/bulk'
+		$result.query.fieldNames | Should -Be 'Region,Floor'
+	}
+
 	It 'does not execute bulk custom field operations with WhatIf' {
 		Invoke-NinjaOneCustomFieldsBulk -operation 'create' -customFields @(@{ name = 'Region' }) -WhatIf
 
@@ -4681,9 +4689,23 @@ Describe 'Scripting options and document templates' {
 	}
 
 	It 'delegates missing document templates' {
-		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'template-api-failed' }
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
 
 		{ Get-NinjaOneDocumentTemplates } | Should -Throw '*No document templates found.*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'gets a document template by id without recursion' {
+		$result = Get-NinjaOneDocumentTemplates -documentTemplateId 102
+
+		$result.resource | Should -Be 'v2/document-templates/102'
+		Assert-MockCalled -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -Times 1
+	}
+
+	It 'delegates missing document template results' {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ Get-NinjaOneDocumentTemplates -documentTemplateId 102 } | Should -Throw '*Document template with id 102 not found.*'
 		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
 	}
 }
@@ -4736,6 +4758,14 @@ Describe 'End user and removal operations' {
 	It 'requires an end user device access change' {
 		{ Set-NinjaOneEndUserDeviceAccess -id 111 -Confirm:$false } | Should -Throw '*Specify at least one*'
 		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'removes a tab by id' {
+		Remove-NinjaOneTab -tabId 112 -Confirm:$false
+
+		Assert-MockCalled -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq 'v2/tab/112'
+		}
 	}
 
 	It 'removes the webhook configuration default route' {
@@ -4804,7 +4834,7 @@ Describe 'Attachment, backup, and document operations' {
 		$planUid = [guid]'00000000-0000-0000-0000-000000000122'
 		$result = New-NinjaOneIntegrityCheckJob -deviceId 122 -planUid $planUid -show -Confirm:$false
 
-		$result.resource | Should -Be 'v2/backups/integrity-check-jobs'
+		$result.resource | Should -Be 'v2/backup/integrity-check-jobs'
 		$result.body.deviceId | Should -Be 122
 		$result.body.planUid | Should -Be $planUid
 	}

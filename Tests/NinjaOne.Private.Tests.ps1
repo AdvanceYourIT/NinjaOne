@@ -2585,19 +2585,19 @@ Describe 'New-NinjaOneDELETERequest' {
 			Assert-MockCalled -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -Times 1 -ParameterFilter { $ParseDateTime }
 		}
 
-		It 'should build query collection path when QSCollection exists in scope' {
+		It 'should append supplied query parameters to the request URI' {
 			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
 				@{ result = @{} }
 			}
 
 			$module = Get-Module -Name $ModuleName
 			& $module {
-				$script:QSCollection = @{ skip = 5; limit = 10 }
-				$null = New-NinjaOneDELETERequest -Resource '/v2/organizations/1'
-				$script:QSCollection = $null
+				$null = New-NinjaOneDELETERequest -Resource '/v2/organizations/1' -QSCollection @{ skip = 5; limit = 10 }
 			}
 
-			Assert-MockCalled -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -Times 1 -ParameterFilter { $Uri -match '/v2/organizations/1' }
+			Assert-MockCalled -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+				$Uri -match '/v2/organizations/1\?' -and $Uri -match 'skip=5' -and $Uri -match 'limit=10'
+			}
 		}
 
 		It 'should delegate web exceptions from Invoke-NinjaOneRequest in current core behavior' {
