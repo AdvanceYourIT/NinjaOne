@@ -9,8 +9,8 @@ param(
 	[string[]]$Suite = @('core', 'private', 'public', 'docs'),
 	[hashtable]$MinimumLineCoverageBySuite = @{
 		core = 3
-		private = 15
-		public = 30
+		private = 18
+		public = 50
 		docs = 0
 	},
 	[ValidateSet('Detailed', 'Normal', 'Minimal', 'None')]

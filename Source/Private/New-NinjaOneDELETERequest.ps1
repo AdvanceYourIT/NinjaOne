@@ -18,6 +18,8 @@ function New-NinjaOneDELETERequest {
 		# The resource to send the request to.
 		[Parameter(Mandatory = $True)]
 		[String]$resource,
+		# Query string values to append to the request.
+		[Object]$QSCollection,
 		# Parse date/time values returned in JSON.
 		[Switch]$parseDateTime
 	)
@@ -31,10 +33,14 @@ function New-NinjaOneDELETERequest {
 	try {
 		if ($QSCollection) {
 			Write-Verbose ('Query string in New-NinjaOneDELETERequest contains: {0}' -f ($QSCollection | Out-String))
-			$QueryStringCollection = [System.Web.HTTPUtility]::ParseQueryString([String]::Empty)
-			Write-Verbose 'Building [HttpQSCollection] for New-NinjaOneDELETERequest'
-			foreach ($Key in $QSCollection.Keys) {
-				$QueryStringCollection.Add($Key, $QSCollection.$Key)
+			if ($QSCollection -is [System.Collections.Specialized.NameValueCollection]) {
+				$QueryStringCollection = $QSCollection
+			} else {
+				$QueryStringCollection = [System.Web.HTTPUtility]::ParseQueryString([String]::Empty)
+				Write-Verbose 'Building [HttpQSCollection] for New-NinjaOneDELETERequest'
+				foreach ($Key in $QSCollection.Keys) {
+					$QueryStringCollection.Add($Key, $QSCollection[$Key])
+				}
 			}
 		} else {
 			Write-Verbose 'Query string collection not present...'
@@ -43,6 +49,9 @@ function New-NinjaOneDELETERequest {
 		$RequestUri = [System.UriBuilder]$Script:NRAPIConnectionInformation.URL
 		Write-Verbose ('Path is {0}' -f $resource)
 		$RequestUri.Path = $resource
+		if ($QueryStringCollection) {
+			$RequestUri.Query = $QueryStringCollection.ToString()
+		}
 		$WebRequestParams = @{
 			Method = 'DELETE'
 			Uri = $RequestUri.ToString()

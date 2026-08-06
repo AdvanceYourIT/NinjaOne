@@ -60,7 +60,7 @@ function Get-NinjaOneOrganisationDevices {
 			if ($OrganisationDevices) {
 				return $OrganisationDevices
 			} else {
-				New-NinjaOneError -Message ('No devices found for the organisation with the id {0}.' -f $organisationId)
+				throw ('No devices found for the organisation with the id {0}.' -f $organisationId)
 			}
 		} catch {
 			New-NinjaOneError -ErrorRecord $_
