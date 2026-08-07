@@ -5447,8 +5447,8 @@ Describe 'Billing mutation families' {
 			[pscustomobject]@{ method = 'put'; resource = $Resource; body = $Body }
 		}
 		Mock -CommandName New-NinjaOnePATCHRequest -ModuleName $ModuleName -MockWith {
-			param($Resource)
-			[pscustomobject]@{ method = 'patch'; resource = $Resource }
+			param($Resource, $Body)
+			[pscustomobject]@{ method = 'patch'; resource = $Resource; body = $Body }
 		}
 		Mock -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -MockWith {
 			param($Resource)
@@ -5517,6 +5517,15 @@ Describe 'Billing mutation families' {
 			WhatIf = { Invoke-NinjaOneBillingProductActivate -id 210 -WhatIf }
 			Command = 'New-NinjaOnePATCHRequest'
 			Resource = 'v2/billing/products/210/activate'
+			BodyCount = 0
+		}
+		[pscustomobject]@{
+			Name = 'billing product deactivation'
+			Invoke = { Invoke-NinjaOneBillingProductDeactivate -id 211 -Confirm:$false }
+			WhatIf = { Invoke-NinjaOneBillingProductDeactivate -id 211 -WhatIf }
+			Command = 'New-NinjaOnePATCHRequest'
+			Resource = 'v2/billing/products/211/deactivate'
+			BodyCount = 0
 		}
 		[pscustomobject]@{
 			Name = 'billing agreement deactivation'
@@ -5524,6 +5533,7 @@ Describe 'Billing mutation families' {
 			WhatIf = { Invoke-NinjaOneBillingAgreementDeactivate -id 214 -WhatIf }
 			Command = 'New-NinjaOnePATCHRequest'
 			Resource = 'v2/billing/agreements/214/deactivate'
+			BodyCount = 0
 		}
 		[pscustomobject]@{
 			Name = 'billing account deletion'
@@ -5538,6 +5548,9 @@ Describe 'Billing mutation families' {
 		$result = & $PSItem.Invoke
 
 		$result.resource | Should -Be $PSItem.Resource
+		if ($PSItem.Command -eq 'New-NinjaOnePATCHRequest') {
+			$result.body.Count | Should -Be $PSItem.BodyCount
+		}
 	}
 
 	It 'does not execute <Name> with WhatIf' -ForEach $BillingCases {
