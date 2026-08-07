@@ -3698,40 +3698,6 @@ Describe 'Set-NinjaOneTab' {
 		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
 	}
 }
-
-Describe 'Remove-NinjaOneBillingAccount' {
-	BeforeEach {
-		Mock -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -MockWith {
-			param($Resource)
-			[pscustomobject]@{ resource = $Resource }
-		}
-		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
-			param($ErrorRecord)
-			throw $ErrorRecord.Exception
-		}
-	}
-	It 'deletes the specific billing account when confirmed' {
-		$result = Remove-NinjaOneBillingAccount -id 27 -Confirm:$false
-
-		$result.resource | Should -Be 'v2/billing/accounts/27'
-		Assert-MockCalled -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
-			$Resource -eq 'v2/billing/accounts/27'
-		}
-	}
-
-	It 'does not delete the billing account when WhatIf is used' {
-		Remove-NinjaOneBillingAccount -id 27 -WhatIf
-
-		Assert-MockCalled -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -Times 0
-	}
-
-	It 'delegates DELETE failures to New-NinjaOneError' {
-		Mock -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -MockWith { throw 'delete-billing-account-failed' }
-
-		{ Remove-NinjaOneBillingAccount -id 27 -Confirm:$false } | Should -Throw '*delete-billing-account-failed*'
-		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
-	}
-}
 Describe 'Billing query functions' {
 	BeforeEach {
 		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
@@ -3922,6 +3888,66 @@ Describe 'Device detail query functions' {
 
 		{ Get-NinjaOneDevicePolicyOverrides -deviceId 26 } | Should -Throw '*policy-overrides-api-failed*'
 		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'Backup and patch install query families' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $QSCollection)
+			[pscustomobject]@{ resource = $Resource; query = $QSCollection }
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	$BackupCases = @(
+		[pscustomobject]@{
+			Name = 'backup jobs'
+			Invoke = { Get-NinjaOneBackupJobs -status 'RUNNING' -deviceFilter 'all' }
+			Resource = '/v2/backup/jobs'
+			NoResultError = $null
+		}
+		[pscustomobject]@{
+			Name = 'integrity check jobs'
+			Invoke = { Get-NinjaOneIntegrityCheckJobs -status 'RUNNING' -deviceFilter 'all' }
+			Resource = '/v2/backup/integrity-check-jobs'
+			NoResultError = $null
+		}
+		[pscustomobject]@{
+			Name = 'OS patch installs'
+			Invoke = { Get-NinjaOneOSPatchInstalls -status 'FAILED' -deviceFilter 'all' -pageSize 10 }
+			Resource = 'v2/queries/os-patch-installs'
+			NoResultError = 'No OS patch installs found.'
+		}
+	)
+
+	It 'gets <Name>' -ForEach $BackupCases {
+		$result = & $PSItem.Invoke
+
+		$result.resource | Should -Be $PSItem.Resource
+	}
+
+	It 'handles empty <Name> results' -ForEach $BackupCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		if ($PSItem.NoResultError) {
+			{ & $PSItem.Invoke } | Should -Throw ('*{0}*' -f $PSItem.NoResultError)
+		}
+		else {
+			{ & $PSItem.Invoke } | Should -Not -Throw
+		}
+	}
+
+	It 'delegates <Name> API failures' -ForEach $BackupCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'backup-query-failed' }
+
+		{ & $PSItem.Invoke } | Should -Throw '*backup-query-failed*'
 	}
 }
 
@@ -4632,6 +4658,67 @@ Describe 'Additional public query coverage' {
 	}
 }
 
+Describe 'Instance capabilities' {
+	BeforeEach {
+		Mock -CommandName Get-NinjaOneInstanceCapabilitiesInternal -ModuleName $ModuleName -MockWith {
+			[pscustomobject]@{
+				BaseUrl = 'https://fed.ninjarmm.com'
+				Version = '7.2.0'
+				SpecUrl = 'https://fed.ninjarmm.com/openapi.json'
+				RetrievedAt = [datetime]'2026-08-07T10:00:00Z'
+				Paths = [ordered]@{
+					'/v2/alerts' = @('GET')
+				}
+			}
+		}
+		Mock -CommandName Get-Module -ModuleName $ModuleName -MockWith {
+			[pscustomobject]@{
+				ExportedFunctions = [ordered]@{ 'Get-NinjaOneAlerts' = $true; 'Get-NinjaOneMysteryCommand' = $true }
+			}
+		}
+		Mock -CommandName Get-Command -ModuleName $ModuleName -MockWith {
+			param($Module, $CommandType)
+
+			@(
+				[pscustomobject]@{
+					Name = 'Get-NinjaOneAlerts'
+					ScriptBlock = [scriptblock]::Create('param()')
+				}
+				[pscustomobject]@{
+					Name = 'Get-NinjaOneMysteryCommand'
+					ScriptBlock = [scriptblock]::Create('param();')
+				}
+			)
+		}
+	}
+
+	It 'returns capability summary for an instance' {
+		$result = Get-NinjaOneInstanceCapabilities -baseUrl 'https://fed.ninjarmm.com'
+
+		$result.BaseUrl | Should -Be 'https://fed.ninjarmm.com'
+		$result.PathCount | Should -Be 1
+	}
+
+	It 'delegates missing instance selection' {
+		Mock -CommandName Get-NinjaOneInstanceCapabilitiesInternal -ModuleName $ModuleName -MockWith { $null }
+
+		{ Get-NinjaOneInstanceCapabilities } | Should -Throw '*No instance selected*'
+	}
+
+	It 'includes supported cmdlets when requested' {
+		$result = Get-NinjaOneInstanceCapabilities -baseUrl 'https://fed.ninjarmm.com' -includeCmdlets
+
+		$result.SupportedCmdletCount | Should -Be 0
+		$result.UnsupportedCmdletCount | Should -Be 0
+	}
+
+	It 'includes raw paths when requested' {
+		$result = Get-NinjaOneInstanceCapabilities -baseUrl 'https://fed.ninjarmm.com' -includePaths
+
+		$result.Paths['/v2/alerts'] | Should -Contain 'GET'
+	}
+}
+
 Describe 'Scripting options and document templates' {
 	BeforeEach {
 		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
@@ -4896,7 +4983,6 @@ Describe 'User and tab query families' {
 		}
 	}
 
-
 	$SimpleUserCases = @(
 		[pscustomobject]@{
 			Name = 'end users'
@@ -4974,6 +5060,382 @@ Describe 'User and tab query families' {
 	}
 }
 
+Describe 'Organisation checklist families' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $QSCollection)
+			[pscustomobject]@{ resource = $Resource; query = $QSCollection }
+		}
+		Mock -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body)
+			[pscustomobject]@{ resource = $Resource; body = $Body }
+		}
+		Mock -CommandName New-NinjaOnePUTRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body)
+			[pscustomobject]@{ resource = $Resource; body = $Body }
+		}
+		Mock -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -MockWith {
+			param($Resource)
+			204
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	It 'gets all organisation checklists' {
+		$result = Get-NinjaOneOrganisationChecklists
+
+		$result.resource | Should -Be 'v2/organization/checklists'
+	}
+
+	It 'gets an organisation checklist by id' {
+		$result = Get-NinjaOneOrganisationChecklist -checklistId 201
+
+		$result.resource | Should -Be 'v2/organization/checklist/201'
+	}
+
+	It 'gets organisation checklist signed URLs' {
+		$result = Get-NinjaOneOrganisationChecklistSignedURLs -checklistId 202
+
+		$result.resource | Should -Be 'v2/organization/checklist/202/signed-urls'
+	}
+
+	It 'promotes organisation checklists with a new name' {
+		$result = Invoke-NinjaOneOrganisationChecklistsPromoteWithName -request @{ checklistIds = @(1, 2); name = 'Renamed' } -Confirm:$false
+
+		$result.resource | Should -Be 'v2/organization/checklists/promote-with-name'
+	}
+
+	It 'removes an organisation checklist' {
+		Remove-NinjaOneOrganisationChecklist -checklistId 203 -Confirm:$false
+
+		Assert-MockCalled -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq 'v2/organization/checklist/203'
+		}
+	}
+
+	It 'creates organisation checklists from templates' {
+		$result = New-NinjaOneOrganisationChecklistsFromTemplates -organisationId 204 -request @{ templateIds = @(10, 11) } -Confirm:$false
+
+		$result.resource | Should -Be 'v2/organization/204/checklists-from-templates'
+	}
+
+	It 'updates organisation checklists' {
+		$result = Set-NinjaOneOrganisationChecklists -checklists @(@{ checklistId = 205; name = 'Updated' }) -Confirm:$false
+
+		$result.resource | Should -Be 'v2/organization/checklists'
+	}
+
+	It 'promotes organisation checklists' {
+		$result = Invoke-NinjaOneOrganisationChecklistsPromote -request @{ checklistIds = @(206, 207) } -Confirm:$false
+
+		$result.resource | Should -Be 'v2/organization/checklists/promote'
+	}
+}
+
+Describe 'User removal families' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -MockWith {
+			param($Resource)
+			[pscustomobject]@{ method = 'delete'; resource = $Resource }
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	$RemovalCases = @(
+		[pscustomobject]@{
+			Name = 'end user removal'
+			Invoke = { Remove-NinjaOneEndUser -id 431 -Confirm:$false }
+			WhatIf = { Remove-NinjaOneEndUser -id 431 -WhatIf }
+			Resource = 'v2/user/end-user/431'
+		}
+		[pscustomobject]@{
+			Name = 'technician removal'
+			Invoke = { Remove-NinjaOneTechnician -id 432 -Confirm:$false }
+			WhatIf = { Remove-NinjaOneTechnician -id 432 -WhatIf }
+			Resource = 'v2/user/technician/432'
+		}
+	)
+
+	It 'executes <Name>' -ForEach $RemovalCases {
+		& $PSItem.Invoke
+
+		Assert-MockCalled -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+			$Resource -eq $PSItem.Resource
+		}
+	}
+
+	It 'does not execute <Name> with WhatIf' -ForEach $RemovalCases {
+		& $PSItem.WhatIf
+
+		Assert-MockCalled -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -Times 0
+	}
+
+	It 'delegates <Name> failures' -ForEach $RemovalCases {
+		Mock -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -MockWith { throw 'user-delete-failed' }
+
+		{ & $PSItem.Invoke } | Should -Throw '*user-delete-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'User set families' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOnePATCHRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body)
+			[pscustomobject]@{ method = 'patch'; resource = $Resource; body = $Body }
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	$UserSetCases = @(
+		[pscustomobject]@{
+			Name = 'end user device access'
+			Invoke = { Set-NinjaOneEndUserDeviceAccess -id 441 -addDeviceIds 10, 11 -removeDeviceIds 12 -Confirm:$false }
+			WhatIf = { Set-NinjaOneEndUserDeviceAccess -id 441 -addDeviceIds 10, 11 -removeDeviceIds 12 -WhatIf }
+			Resource = 'v2/user/end-user/441/device-access'
+		}
+		[pscustomobject]@{
+			Name = 'user role organization permissions'
+			Invoke = { Set-NinjaOneUserRoleOrganizationPermissions -roleId 442 -permissions @{ allowAll = $true } -Confirm:$false }
+			WhatIf = { Set-NinjaOneUserRoleOrganizationPermissions -roleId 442 -permissions @{ allowAll = $true } -WhatIf }
+			Resource = 'v2/user/role/442/permissions/organizations'
+		}
+	)
+
+	It 'executes <Name>' -ForEach $UserSetCases {
+		$result = & $PSItem.Invoke
+
+		$result.resource | Should -Be $PSItem.Resource
+	}
+
+	It 'does not execute <Name> with WhatIf' -ForEach $UserSetCases {
+		& $PSItem.WhatIf
+
+		Assert-MockCalled -CommandName New-NinjaOnePATCHRequest -ModuleName $ModuleName -Times 0
+	}
+
+	It 'delegates <Name> failures' -ForEach $UserSetCases {
+		Mock -CommandName New-NinjaOnePATCHRequest -ModuleName $ModuleName -MockWith { throw 'user-set-failed' }
+
+		{ & $PSItem.Invoke } | Should -Throw '*user-set-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'Tag mutation families' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body)
+			[pscustomobject]@{ method = 'post'; resource = $Resource; body = $Body }
+		}
+		Mock -CommandName New-NinjaOnePUTRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body)
+			[pscustomobject]@{ method = 'put'; resource = $Resource; body = $Body }
+		}
+		Mock -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -MockWith { 204 }
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	Describe 'Ticketing query families' {
+		BeforeEach {
+			Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+				[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+			}
+			Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+				param($Resource, $QSCollection)
+				[pscustomobject]@{ resource = $Resource; query = $QSCollection }
+			}
+			Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+				param($ErrorRecord)
+				throw $ErrorRecord.Exception
+			}
+		}
+
+		Describe 'Device query families' {
+			BeforeEach {
+				Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+					[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+				}
+				Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+					param($Resource, $QSCollection)
+					[pscustomobject]@{ resource = $Resource; query = $QSCollection }
+				}
+				Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+					param($ErrorRecord)
+					throw $ErrorRecord.Exception
+				}
+			}
+
+			$DeviceCases = @(
+				[pscustomobject]@{
+					Name = 'device disks'
+					Invoke = { Get-NinjaOneDeviceDisks -deviceId 408 }
+					Resource = 'v2/device/408/disks'
+					NoResultError = $null
+				}
+				[pscustomobject]@{
+					Name = 'device network interfaces'
+					Invoke = { Get-NinjaOneDeviceNetworkInterfaces -deviceId 409 }
+					Resource = 'v2/device/409/network-interfaces'
+					NoResultError = $null
+				}
+				[pscustomobject]@{
+					Name = 'device volumes'
+					Invoke = { Get-NinjaOneDeviceVolumes -deviceId 410 -include bl }
+					Resource = 'v2/device/410/volumes'
+					NoResultError = $null
+				}
+			)
+
+			It 'gets <Name>' -ForEach $DeviceCases {
+				$result = & $PSItem.Invoke
+
+				$result.resource | Should -Be $PSItem.Resource
+			}
+
+			It 'returns a value for empty <Name> results' -ForEach $DeviceCases {
+				Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+				{ & $PSItem.Invoke } | Should -Not -Throw
+			}
+
+			It 'delegates <Name> API failures' -ForEach $DeviceCases {
+				Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'device-query-failed' }
+
+				{ & $PSItem.Invoke } | Should -Throw '*device-query-failed*'
+			}
+		}
+
+		$TicketingCases = @(
+			[pscustomobject]@{
+				Name = 'ticket attributes'
+				Invoke = { Get-NinjaOneTicketAttributes }
+				Resource = 'v2/ticketing/attributes'
+				NoResultError = 'No ticket attributes found.'
+			}
+			[pscustomobject]@{
+				Name = 'ticket boards'
+				Invoke = { Get-NinjaOneTicketBoards }
+				Resource = 'v2/ticketing/trigger/boards'
+				NoResultError = 'No boards found.'
+			}
+			[pscustomobject]@{
+				Name = 'ticket statuses'
+				Invoke = { Get-NinjaOneTicketStatuses }
+				Resource = 'v2/ticketing/statuses'
+				NoResultError = 'No ticket statuses found.'
+			}
+			[pscustomobject]@{
+				Name = 'ticketing contacts'
+				Invoke = { Get-NinjaOneTicketingContacts }
+				Resource = 'v2/ticketing/contact/contacts'
+				NoResultError = 'No ticketing contacts found.'
+			}
+			[pscustomobject]@{
+				Name = 'ticketing users'
+				Invoke = { Get-NinjaOneTicketingUsers -anchorNaturalId 405 -clientId 406 -pageSize 10 -searchCriteria 'mikey' -userType TECHNICIAN }
+				Resource = 'v2/ticketing/app-user-contact'
+				NoResultError = 'No ticketing users found.'
+			}
+			[pscustomobject]@{
+				Name = 'ticket forms'
+				Invoke = { Get-NinjaOneTicketForms -ticketFormId 407 }
+				Resource = '/v2/ticketing/ticket-form/407'
+				NoResultError = 'No ticket forms found.'
+			}
+		)
+
+		It 'gets <Name>' -ForEach $TicketingCases {
+			$result = & $PSItem.Invoke
+
+			$result.resource | Should -Be $PSItem.Resource
+		}
+
+		It 'delegates empty <Name> results' -ForEach $TicketingCases {
+			Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+			{ & $PSItem.Invoke } | Should -Throw ('*{0}*' -f $PSItem.NoResultError)
+		}
+
+		It 'delegates <Name> API failures' -ForEach $TicketingCases {
+			Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'ticketing-query-failed' }
+
+			{ & $PSItem.Invoke } | Should -Throw '*ticketing-query-failed*'
+		}
+	}
+
+	$MutationCases = @(
+		[pscustomobject]@{
+			Name = 'tag create'
+			Invoke = { New-NinjaOneTag -tag @{ name = 'Priority-2'; description = 'Batch coverage' } -Confirm:$false }
+			WhatIf = { New-NinjaOneTag -tag @{ name = 'Priority-2'; description = 'Batch coverage' } -WhatIf }
+			Command = 'New-NinjaOnePOSTRequest'
+			Resource = 'v2/tag'
+		}
+		[pscustomobject]@{
+			Name = 'tag update'
+			Invoke = { Set-NinjaOneTag -tagId 321 -tag @{ name = 'Priority-1' } -Confirm:$false }
+			WhatIf = { Set-NinjaOneTag -tagId 321 -tag @{ name = 'Priority-1' } -WhatIf }
+			Command = 'New-NinjaOnePUTRequest'
+			Resource = 'v2/tag/321'
+		}
+		[pscustomobject]@{
+			Name = 'tag removal'
+			Invoke = { Remove-NinjaOneTag -tagId 324 -Confirm:$false }
+			WhatIf = { Remove-NinjaOneTag -tagId 324 -WhatIf }
+			Command = 'New-NinjaOneDELETERequest'
+		}
+		[pscustomobject]@{
+			Name = 'tag batch update'
+			Invoke = { Set-NinjaOneTagBatch -assetType 'device' -tagUpdate @{ assetIds = @(123, 456); tagIdsToAdd = @(1, 2); tagIdsToRemove = @(3, 4) } -Confirm:$false }
+			WhatIf = { Set-NinjaOneTagBatch -assetType 'device' -tagUpdate @{ assetIds = @(123, 456); tagIdsToAdd = @(1, 2); tagIdsToRemove = @(3, 4) } -WhatIf }
+			Command = 'New-NinjaOnePOSTRequest'
+			Resource = 'v2/tag/device'
+		}
+		[pscustomobject]@{
+			Name = 'tag merge'
+			Invoke = { Merge-NinjaOneTags -mergeRequest @{ sourceTagIds = @(322, 323); targetTagId = 321 } -Confirm:$false }
+			WhatIf = { Merge-NinjaOneTags -mergeRequest @{ sourceTagIds = @(322, 323); targetTagId = 321 } -WhatIf }
+			Command = 'New-NinjaOnePOSTRequest'
+			Resource = 'v2/tag/merge'
+		}
+	)
+
+	It 'executes <Name>' -ForEach $MutationCases {
+		$result = & $PSItem.Invoke
+
+		$result.resource | Should -Be $PSItem.Resource
+	}
+
+	It 'does not execute <Name> with WhatIf' -ForEach $MutationCases {
+		& $PSItem.WhatIf
+
+		Assert-MockCalled -CommandName $PSItem.Command -ModuleName $ModuleName -Times 0
+	}
+
+	It 'delegates <Name> failures' -ForEach $MutationCases {
+		Mock -CommandName $PSItem.Command -ModuleName $ModuleName -MockWith { throw 'action-failed' }
+
+		{ & $PSItem.Invoke } | Should -Throw '*action-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
 Describe 'Billing mutation families' {
 	BeforeEach {
 		Mock -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -MockWith {
@@ -4988,11 +5450,16 @@ Describe 'Billing mutation families' {
 			param($Resource)
 			[pscustomobject]@{ method = 'patch'; resource = $Resource }
 		}
+		Mock -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -MockWith {
+			param($Resource)
+			[pscustomobject]@{ method = 'delete'; resource = $Resource }
+		}
 		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
 			param($ErrorRecord)
 			throw $ErrorRecord.Exception
 		}
 	}
+
 
 	$BillingCases = @(
 		[pscustomobject]@{
@@ -5051,6 +5518,20 @@ Describe 'Billing mutation families' {
 			Command = 'New-NinjaOnePATCHRequest'
 			Resource = 'v2/billing/products/210/activate'
 		}
+		[pscustomobject]@{
+			Name = 'billing agreement deactivation'
+			Invoke = { Invoke-NinjaOneBillingAgreementDeactivate -id 214 -Confirm:$false }
+			WhatIf = { Invoke-NinjaOneBillingAgreementDeactivate -id 214 -WhatIf }
+			Command = 'New-NinjaOnePATCHRequest'
+			Resource = 'v2/billing/agreements/214/deactivate'
+		}
+		[pscustomobject]@{
+			Name = 'billing account deletion'
+			Invoke = { Remove-NinjaOneBillingAccount -id 213 -Confirm:$false }
+			WhatIf = { Remove-NinjaOneBillingAccount -id 213 -WhatIf }
+			Command = 'New-NinjaOneDELETERequest'
+			Resource = 'v2/billing/accounts/213'
+		}
 	)
 
 	It 'executes <Name>' -ForEach $BillingCases {
@@ -5071,4 +5552,127 @@ Describe 'Billing mutation families' {
 		{ & $PSItem.Invoke } | Should -Throw '*billing-mutation-failed*'
 		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
 	}
+
+Describe 'Organisation and device actions' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body)
+			[pscustomobject]@{ method = 'post'; resource = $Resource; body = $Body }
+		}
+		Mock -CommandName New-NinjaOnePUTRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body)
+			[pscustomobject]@{ method = 'put'; resource = $Resource; body = $Body }
+		}
+		Mock -CommandName New-NinjaOneDELETERequest -ModuleName $ModuleName -MockWith { 204 }
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	$ActionCases = @(
+		[pscustomobject]@{
+			Name = 'organisation checklist creation'
+			Invoke = { New-NinjaOneOrganisationChecklist -checklist @{ name = 'Onboarding' } -Confirm:$false }
+			WhatIf = { New-NinjaOneOrganisationChecklist -checklist @{ name = 'Onboarding' } -WhatIf }
+			Command = 'New-NinjaOnePOSTRequest'
+			Resource = 'v2/organization/checklists'
+		}
+		[pscustomobject]@{
+			Name = 'checklists from templates creation'
+			Invoke = { New-NinjaOneOrganisationChecklistsFromTemplates -organisationId 311 -request @{ templateIds = @(1, 2) } -Confirm:$false }
+			WhatIf = { New-NinjaOneOrganisationChecklistsFromTemplates -organisationId 311 -request @{ templateIds = @(1, 2) } -WhatIf }
+			Command = 'New-NinjaOnePOSTRequest'
+			Resource = 'v2/organization/311/checklists-from-templates'
+		}
+		[pscustomobject]@{
+			Name = 'organisation checklists update'
+			Invoke = { Set-NinjaOneOrganisationChecklists -checklists @(@{ checklistId = 318; name = 'Updated' }) -Confirm:$false }
+			WhatIf = { Set-NinjaOneOrganisationChecklists -checklists @(@{ checklistId = 318; name = 'Updated' }) -WhatIf }
+			Command = 'New-NinjaOnePUTRequest'
+			Resource = 'v2/organization/checklists'
+		}
+		[pscustomobject]@{
+			Name = 'organisation checklists promote'
+			Invoke = { Invoke-NinjaOneOrganisationChecklistsPromote -request @{ checklistIds = @(319, 320) } -Confirm:$false }
+			WhatIf = { Invoke-NinjaOneOrganisationChecklistsPromote -request @{ checklistIds = @(319, 320) } -WhatIf }
+			Command = 'New-NinjaOnePOSTRequest'
+			Resource = 'v2/organization/checklists/promote'
+		}
+		[pscustomobject]@{
+			Name = 'organisation checklists removal'
+			Invoke = { Remove-NinjaOneOrganisationChecklists -request @{ checklistIds = @(314, 315) } -Confirm:$false }
+			WhatIf = { Remove-NinjaOneOrganisationChecklists -request @{ checklistIds = @(314, 315) } -WhatIf }
+			Command = 'New-NinjaOnePOSTRequest'
+			Resource = 'v2/organization/checklists/delete'
+		}
+		[pscustomobject]@{
+			Name = 'tag update'
+			Invoke = { Set-NinjaOneTag -tagId 316 -tag @{ name = 'Priority-1' } -Confirm:$false }
+			WhatIf = { Set-NinjaOneTag -tagId 316 -tag @{ name = 'Priority-1' } -WhatIf }
+			Command = 'New-NinjaOnePUTRequest'
+			Resource = 'v2/tag/316'
+		}
+		[pscustomobject]@{
+			Name = 'tag removals'
+			Invoke = { Remove-NinjaOneTags -deleteRequest @{ tagIds = @(325, 326) } -Confirm:$false }
+			WhatIf = { Remove-NinjaOneTags -deleteRequest @{ tagIds = @(325, 326) } -WhatIf }
+			Command = 'New-NinjaOnePOSTRequest'
+			Resource = 'v2/tag/delete'
+		}
+		[pscustomobject]@{
+			Name = 'OS patch apply'
+			Invoke = { Start-NinjaOneOSPatchApply -deviceId 317 -Confirm:$false }
+			WhatIf = { Start-NinjaOneOSPatchApply -deviceId 317 -WhatIf }
+			Command = 'New-NinjaOnePOSTRequest'
+			Resource = 'v2/device/317/patch/os/apply'
+		}
+		[pscustomobject]@{
+			Name = 'tag update'
+			Invoke = { Set-NinjaOneTag -tagId 321 -tag @{ name = 'Priority-1' } -Confirm:$false }
+			WhatIf = { Set-NinjaOneTag -tagId 321 -tag @{ name = 'Priority-1' } -WhatIf }
+			Command = 'New-NinjaOnePUTRequest'
+			Resource = 'v2/tag/321'
+		}
+		[pscustomobject]@{
+			Name = 'tag merge'
+			Invoke = { Merge-NinjaOneTags -mergeRequest @{ sourceTagIds = @(322, 323); targetTagId = 321 } -Confirm:$false }
+			WhatIf = { Merge-NinjaOneTags -mergeRequest @{ sourceTagIds = @(322, 323); targetTagId = 321 } -WhatIf }
+			Command = 'New-NinjaOnePOSTRequest'
+			Resource = 'v2/tag/merge'
+		}
+		[pscustomobject]@{
+			Name = 'tag create'
+			Invoke = { New-NinjaOneTag -tag @{ name = 'Priority-2'; description = 'Batch coverage' } -Confirm:$false }
+			WhatIf = { New-NinjaOneTag -tag @{ name = 'Priority-2'; description = 'Batch coverage' } -WhatIf }
+			Command = 'New-NinjaOnePOSTRequest'
+			Resource = 'v2/tag'
+		}
+	)
+
+	It 'executes <Name>' -ForEach $ActionCases {
+		$result = & $PSItem.Invoke
+
+		if ($null -ne $PSItem.Resource) {
+			$result.resource | Should -Be $PSItem.Resource
+		}
+		else {
+			$result | Should -Not -BeNullOrEmpty
+		}
+	}
+
+	It 'does not execute <Name> with WhatIf' -ForEach $ActionCases {
+		& $PSItem.WhatIf
+
+		Assert-MockCalled -CommandName $PSItem.Command -ModuleName $ModuleName -Times 0
+	}
+
+	It 'delegates <Name> failures' -ForEach $ActionCases {
+		Mock -CommandName $PSItem.Command -ModuleName $ModuleName -MockWith { throw 'action-failed' }
+
+		{ & $PSItem.Invoke } | Should -Throw '*action-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
 }
