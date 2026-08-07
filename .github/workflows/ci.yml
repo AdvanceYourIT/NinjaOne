@@ -9,8 +9,7 @@ on:
       - develop
   pull_request:
     branches:
-      - develop
-      - raise-public-coverage
+      - '**'
   workflow_dispatch:
 
 jobs:
