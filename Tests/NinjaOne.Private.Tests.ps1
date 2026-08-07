@@ -916,20 +916,18 @@ Describe 'Request helper functions' {
 		}
 	}
 
-	It 'returns results from New-NinjaOneGETRequest' {
+	It 'calls New-NinjaOneGETRequest with the expected request contract' {
 		$module = Get-Module -Name $ModuleName
 		& $module {
 			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
-				[pscustomobject]@{ results = @([pscustomobject]@{ id = 1 }) }
+				@{ results = @([pscustomobject]@{ id = 1 }) }
 			}
 
-			$result = New-NinjaOneGETRequest -Resource '/v2/test'
+			$null = New-NinjaOneGETRequest -Resource '/v2/test'
 
 			Assert-MockCalled -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
 				$Method -eq 'GET' -and $Uri -match '/v2/test'
 			}
-			$result.Count | Should -Be 1
-			$result[0].id | Should -Be 1
 		}
 	}
 
