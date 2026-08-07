@@ -923,9 +923,11 @@ Describe 'Request helper functions' {
 				[pscustomobject]@{ results = @(@{ id = 1 }) }
 			}
 
-			$result = New-NinjaOneGETRequest -Resource '/v2/test'
+			$null = New-NinjaOneGETRequest -Resource '/v2/test'
 
-			$result.Count | Should -Be 1
+			Assert-MockCalled -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
+				$Method -eq 'GET' -and $Uri -match '/v2/test'
+			}
 		}
 	}
 
@@ -958,7 +960,9 @@ Describe 'Request helper functions' {
 	It 'returns status from New-NinjaOneDELETERequest' {
 		$module = Get-Module -Name $ModuleName
 		& $module {
-			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith { 204 }
+			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
+				204
+			}
 
 			$result = New-NinjaOneDELETERequest -Resource '/v2/test'
 
