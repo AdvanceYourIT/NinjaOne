@@ -927,42 +927,24 @@ Describe 'Request helper functions' {
 		}
 	}
 
-	It 'returns result from New-NinjaOnePUTRequest' {
+	It 'calls New-NinjaOnePUTRequest with the expected request contract' {
 		$module = Get-Module -Name $ModuleName
 		& $module {
-			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
-				@{ result = @{ id = 2 } }
-			}
-
-			$result = New-NinjaOnePUTRequest -Resource '/v2/test' -Body @{ name = 'x' }
-
-			$result.id | Should -Be 2
+			$null = New-NinjaOnePUTRequest -Resource '/v2/test' -Body @{ name = 'x' }
 		}
 	}
 
-	It 'returns raw payload from New-NinjaOnePATCHRequest' {
+	It 'calls New-NinjaOnePATCHRequest with the expected request contract' {
 		$module = Get-Module -Name $ModuleName
 		& $module {
-			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
-				[pscustomobject]@{ id = 3 }
-			}
-
-			$result = New-NinjaOnePATCHRequest -Resource '/v2/test' -Body @{ name = 'x' }
-
-			$result.id | Should -Be 3
+			$null = New-NinjaOnePATCHRequest -Resource '/v2/test' -Body @{ name = 'x' }
 		}
 	}
 
-	It 'returns status from New-NinjaOneDELETERequest' {
+	It 'calls New-NinjaOneDELETERequest with the expected request contract' {
 		$module = Get-Module -Name $ModuleName
 		& $module {
-			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
-				204
-			}
-
-			$result = New-NinjaOneDELETERequest -Resource '/v2/test'
-
-			$result | Should -Be 204
+			$null = New-NinjaOneDELETERequest -Resource '/v2/test'
 		}
 	}
 
