@@ -930,7 +930,7 @@ Describe 'Request helper functions' {
 	It 'calls New-NinjaOnePUTRequest with the expected request contract' {
 		$module = Get-Module -Name $ModuleName
 		& $module {
-			$null = New-NinjaOnePUTRequest -Resource '/v2/test' -Body @{ name = 'x' } -ErrorAction SilentlyContinue
+			$null = New-NinjaOnePUTRequest -Resource '/v2/test' -Body @{ name = 'x' }
 
 			Assert-MockCalled -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
 				$Method -eq 'PUT' -and $Uri -match '/v2/test'
