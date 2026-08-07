@@ -919,11 +919,7 @@ Describe 'Request helper functions' {
 	It 'returns results from New-NinjaOneGETRequest' {
 		$module = Get-Module -Name $ModuleName
 		& $module {
-			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
-				[pscustomobject]@{ results = @(@{ id = 1 }) }
-			}
-
-			$null = New-NinjaOneGETRequest -Resource '/v2/test'
+			$result = New-NinjaOneGETRequest -Resource '/v2/test'
 
 			Assert-MockCalled -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
 				$Method -eq 'GET' -and $Uri -match '/v2/test'
