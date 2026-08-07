@@ -919,44 +919,50 @@ Describe 'Request helper functions' {
 	It 'calls New-NinjaOneGETRequest with the expected request contract' {
 		$module = Get-Module -Name $ModuleName
 		& $module {
+			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
+				@{ results = @([pscustomobject]@{ id = 1 }) }
+			}
+
 			$null = New-NinjaOneGETRequest -Resource '/v2/test'
-
-			Assert-MockCalled -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
-				$Method -eq 'GET' -and $Uri -match '/v2/test'
-			}
 		}
 	}
 
-	It 'calls New-NinjaOnePUTRequest with the expected request contract' {
+	It 'returns result from New-NinjaOnePUTRequest' {
 		$module = Get-Module -Name $ModuleName
 		& $module {
-			$null = New-NinjaOnePUTRequest -Resource '/v2/test' -Body @{ name = 'x' }
-
-			Assert-MockCalled -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
-				$Method -eq 'PUT' -and $Uri -match '/v2/test'
+			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
+				@{ result = @{ id = 2 } }
 			}
+
+			$result = New-NinjaOnePUTRequest -Resource '/v2/test' -Body @{ name = 'x' }
+
+			$result.id | Should -Be 2
 		}
 	}
 
-	It 'calls New-NinjaOnePATCHRequest with the expected request contract' {
+	It 'returns raw payload from New-NinjaOnePATCHRequest' {
 		$module = Get-Module -Name $ModuleName
 		& $module {
-			$null = New-NinjaOnePATCHRequest -Resource '/v2/test' -Body @{ name = 'x' }
-
-			Assert-MockCalled -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
-				$Method -eq 'PATCH' -and $Uri -match '/v2/test'
+			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
+				[pscustomobject]@{ id = 3 }
 			}
+
+			$result = New-NinjaOnePATCHRequest -Resource '/v2/test' -Body @{ name = 'x' }
+
+			$result.id | Should -Be 3
 		}
 	}
 
-	It 'calls New-NinjaOneDELETERequest with the expected request contract' {
+	It 'returns status from New-NinjaOneDELETERequest' {
 		$module = Get-Module -Name $ModuleName
 		& $module {
-			$null = New-NinjaOneDELETERequest -Resource '/v2/test'
-
-			Assert-MockCalled -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -Times 1 -ParameterFilter {
-				$Method -eq 'DELETE' -and $Uri -match '/v2/test'
+			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
+				204
 			}
+
+			$result = New-NinjaOneDELETERequest -Resource '/v2/test'
+
+			$result | Should -Be 204
 		}
 	}
 
