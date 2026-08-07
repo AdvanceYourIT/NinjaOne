@@ -32,7 +32,7 @@ function Invoke-NinjaOneBillingProductActivate {
 		try {
 			$Resource = ('v2/billing/products/{0}/activate' -f $id)
 			if ($PSCmdlet.ShouldProcess(('Billing Product {0}' -f $id), 'Activate')) {
-				return (New-NinjaOnePATCHRequest -Resource $Resource)
+				return (New-NinjaOnePATCHRequest -Resource $Resource -Body @{})
 			}
 		} catch {
 			New-NinjaOneError -ErrorRecord $_

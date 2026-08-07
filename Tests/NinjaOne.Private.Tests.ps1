@@ -894,6 +894,92 @@ Describe 'Get-NinjaOneSecrets' {
 	}
 }
 
+Describe 'Request helper functions' {
+	BeforeEach {
+		$script:NRAPIConnectionInformation = @{
+			URL = 'https://api.test.local'
+			AuthMode = 'Token Authentication'
+		}
+		$script:NRAPIAuthenticationInformation = @{
+			Type = 'Bearer'
+			Access = 'token'
+		}
+		$script:ParseDateTimes = $false
+		$script:NRAPIInstanceCapabilityCheckEnabled = $false
+		Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
+			param($Method, $Uri, $Body, $Raw, $ParseDateTime)
+			[pscustomobject]@{ method = $Method; uri = $Uri; body = $Body; raw = $Raw; parseDateTime = $ParseDateTime; results = @() }
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	It 'returns results from New-NinjaOneGETRequest' {
+		$module = Get-Module -Name $ModuleName
+		& $module {
+			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
+				[pscustomobject]@{ results = @(@{ id = 1 }) }
+			}
+
+			$result = New-NinjaOneGETRequest -Resource '/v2/test'
+
+			$result.Count | Should -Be 1
+		}
+	}
+
+	It 'returns result from New-NinjaOnePUTRequest' {
+		$module = Get-Module -Name $ModuleName
+		& $module {
+			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
+				@{ result = @{ id = 2 } }
+			}
+
+			$result = New-NinjaOnePUTRequest -Resource '/v2/test' -Body @{ name = 'x' } -ErrorAction SilentlyContinue
+
+			$result.id | Should -Be 2
+		}
+	}
+
+	It 'returns raw payload from New-NinjaOnePATCHRequest' {
+		$module = Get-Module -Name $ModuleName
+		& $module {
+			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
+				[pscustomobject]@{ id = 3 }
+			}
+
+			$result = New-NinjaOnePATCHRequest -Resource '/v2/test' -Body @{ name = 'x' }
+
+			$result.id | Should -Be 3
+		}
+	}
+
+	It 'returns status from New-NinjaOneDELETERequest' {
+		$module = Get-Module -Name $ModuleName
+		& $module {
+			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith { 204 }
+
+			$result = New-NinjaOneDELETERequest -Resource '/v2/test'
+
+			$result | Should -Be 204
+		}
+	}
+
+	It 'throws when endpoint support rejects a request' {
+		$module = Get-Module -Name $ModuleName
+		& $module {
+			$script:NRAPIInstanceCapabilityCheckEnabled = $true
+			$script:NRAPIConnectionInformation.URL = 'https://instance.ninjarmm.com'
+			Mock -CommandName Get-NinjaOneInstanceCapabilitiesInternal -ModuleName $ModuleName -MockWith {
+				[pscustomobject]@{ Paths = @{}; Version = '1' }
+			}
+
+			{ New-NinjaOneGETRequest -Resource '/v2/missing' } | Should -Throw
+		}
+	}
+}
+
 Describe 'New-NinjaOneError' {
 	Context 'Error transformation behavior' {
 		It 'should pass through non-http exceptions as terminating errors' {
@@ -1912,6 +1998,99 @@ Describe 'New-NinjaOneQuery' {
 				$Parameters = (Get-Command -Name $CommandName).Parameters
 				$script:QSBuilder = [System.UriBuilder]::new()
 				{ New-NinjaOneQuery -CommandName $CommandName -Parameters $Parameters -AsString -ErrorAction SilentlyContinue } | Should -Not -Throw
+			}
+		}
+	}
+
+	Context 'Query construction branches' {
+		It 'should use the parameter name when no alias is present' {
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				$Filter = 'alpha'
+				$parameters = @{
+					Filter = [pscustomobject]@{
+						Name = 'Filter'
+						ParameterType = [pscustomobject]@{ Name = 'String' }
+						Aliases = @()
+					}
+				}
+
+				$result = New-NinjaOneQuery -CommandName 'Get-Test' -Parameters $parameters
+				$result['Filter'] | Should -Be 'alpha'
+			}
+		}
+
+		It 'should join string arrays when comma separated arrays are requested' {
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				$Tags = @('one', 'two')
+				$parameters = @{
+					Tags = [pscustomobject]@{
+						Name = 'Tags'
+						ParameterType = [pscustomobject]@{ Name = 'String[]' }
+						Aliases = @('tag')
+					}
+				}
+
+				$result = New-NinjaOneQuery -CommandName 'Get-Test' -Parameters $parameters -CommaSeparatedArrays
+				$result['tag'] | Should -Be 'one,two'
+			}
+		}
+
+		It 'should expand int arrays when comma separated arrays are not requested' {
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				$Ids = @(1, 2)
+				$parameters = @{
+					Ids = [pscustomobject]@{
+						Name = 'Ids'
+						ParameterType = [pscustomobject]@{ Name = 'Int32[]' }
+						Aliases = @('id')
+					}
+				}
+
+				$result = New-NinjaOneQuery -CommandName 'Get-Test' -Parameters $parameters
+				$result['id'] | Should -Be '1,2'
+			}
+		}
+
+		It 'should convert datetime arrays to unix epoch when comma separated arrays are requested' {
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				$CreatedAfter = @([datetime]'2026-01-01T00:00:00Z', [datetime]'2026-01-02T00:00:00Z')
+				$parameters = @{
+					CreatedAfter = [pscustomobject]@{
+						Name = 'CreatedAfter'
+						ParameterType = [pscustomobject]@{ Name = 'DateTime[]' }
+						Aliases = @('createdAfter')
+					}
+				}
+
+				Mock -CommandName ConvertTo-UnixEpoch -ModuleName $ModuleName -MockWith {
+					param($DateTime)
+					if ($DateTime -eq [datetime]'2026-01-01T00:00:00Z') { return 111 }
+					return 222
+				}
+
+				$result = New-NinjaOneQuery -CommandName 'Get-Test' -Parameters $parameters -CommaSeparatedArrays
+				$result['createdAfter'] | Should -Be '111,222'
+			}
+		}
+
+		It 'should return a query string when requested' {
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				$Search = 'alpha'
+				$parameters = @{
+					Search = [pscustomobject]@{
+						Name = 'Search'
+						ParameterType = [pscustomobject]@{ Name = 'String' }
+						Aliases = @('q')
+					}
+				}
+
+				$result = New-NinjaOneQuery -CommandName 'Get-Test' -Parameters $parameters -AsString
+				$result | Should -Match '^\?q=alpha'
 			}
 		}
 	}
