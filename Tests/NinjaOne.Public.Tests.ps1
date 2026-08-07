@@ -4803,11 +4803,13 @@ Describe 'Attachment, backup, and document operations' {
 				jobUid = 'job-121'
 			}
 		}
+
 		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
 			param($ErrorRecord)
 			throw $ErrorRecord.Exception
 		}
 	}
+
 
 	It 'creates and returns an attachment relation' {
 		$result = New-NinjaOneAttachmentRelation -entityType 'ORGANIZATION' -entityId 121 -attachmentRelation @{ name = 'contract.pdf' } -show -Confirm:$false
@@ -4875,6 +4877,198 @@ Describe 'Attachment, backup, and document operations' {
 		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
 
 		{ Get-NinjaOneOrganisationDocumentSignedURLs -clientDocumentId 124 } | Should -Throw '*No organisation document signed URLs found*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'User and tab query families' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOneQuery -ModuleName $ModuleName -MockWith {
+			[System.Web.HttpUtility]::ParseQueryString([String]::Empty)
+		}
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith {
+			param($Resource)
+			[pscustomobject]@{ id = 201; resource = $Resource }
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+
+	$SimpleUserCases = @(
+		[pscustomobject]@{
+			Name = 'end users'
+			Invoke = { Get-NinjaOneEndUsers }
+			Resource = 'v2/user/end-users'
+			NoResultError = 'No end users found.'
+		}
+		[pscustomobject]@{
+			Name = 'technicians'
+			Invoke = { Get-NinjaOneTechnicians }
+			Resource = 'v2/user/technicians'
+			NoResultError = 'No technicians found.'
+		}
+	)
+
+	It 'gets <Name>' -ForEach $SimpleUserCases {
+		$result = & $PSItem.Invoke
+
+		$result.resource | Should -Be $PSItem.Resource
+	}
+
+	It 'delegates empty <Name> results' -ForEach $SimpleUserCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ & $PSItem.Invoke } | Should -Throw ('*{0}*' -f $PSItem.NoResultError)
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'delegates <Name> API failures' -ForEach $SimpleUserCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'user-query-failed' }
+
+		{ & $PSItem.Invoke } | Should -Throw '*user-query-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	$TabCases = @(
+		[pscustomobject]@{
+			Name = 'tab end user'
+			Invoke = { Get-NinjaOneTabEndUser -tabId 202 }
+			Resource = 'v2/tab/202/end-user'
+			NoResultError = 'End-user for tab 202 not found.'
+		}
+		[pscustomobject]@{
+			Name = 'tab organisation'
+			Invoke = { Get-NinjaOneTabOrganisation -tabId 203 }
+			Resource = 'v2/tab/203/organization'
+			NoResultError = 'Organisation for tab 203 not found.'
+		}
+		[pscustomobject]@{
+			Name = 'tab role'
+			Invoke = { Get-NinjaOneTabRole -tabId 204 -roleId 205 }
+			Resource = 'v2/tab/204/role/205'
+			NoResultError = 'Tab 204 for role 205 not found.'
+		}
+	)
+
+	It 'gets <Name>' -ForEach $TabCases {
+		$result = & $PSItem.Invoke
+
+		$result.resource | Should -Be $PSItem.Resource
+	}
+
+	It 'delegates empty <Name> results' -ForEach $TabCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { $null }
+
+		{ & $PSItem.Invoke } | Should -Throw ('*{0}*' -f $PSItem.NoResultError)
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+
+	It 'delegates <Name> API failures' -ForEach $TabCases {
+		Mock -CommandName New-NinjaOneGETRequest -ModuleName $ModuleName -MockWith { throw 'tab-query-failed' }
+
+		{ & $PSItem.Invoke } | Should -Throw '*tab-query-failed*'
+		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
+	}
+}
+
+Describe 'Billing mutation families' {
+	BeforeEach {
+		Mock -CommandName New-NinjaOnePOSTRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body)
+			[pscustomobject]@{ method = 'post'; resource = $Resource; body = $Body }
+		}
+		Mock -CommandName New-NinjaOnePUTRequest -ModuleName $ModuleName -MockWith {
+			param($Resource, $Body)
+			[pscustomobject]@{ method = 'put'; resource = $Resource; body = $Body }
+		}
+		Mock -CommandName New-NinjaOnePATCHRequest -ModuleName $ModuleName -MockWith {
+			param($Resource)
+			[pscustomobject]@{ method = 'patch'; resource = $Resource }
+		}
+		Mock -CommandName New-NinjaOneError -ModuleName $ModuleName -MockWith {
+			param($ErrorRecord)
+			throw $ErrorRecord.Exception
+		}
+	}
+
+	$BillingCases = @(
+		[pscustomobject]@{
+			Name = 'billing account creation'
+			Invoke = { New-NinjaOneBillingAccount -billingAccount @{ name = 'Managed Services' } -Confirm:$false }
+			WhatIf = { New-NinjaOneBillingAccount -billingAccount @{ name = 'Managed Services' } -WhatIf }
+			Command = 'New-NinjaOnePOSTRequest'
+			Resource = 'v2/billing/accounts'
+		}
+		[pscustomobject]@{
+			Name = 'billing agreement creation'
+			Invoke = { New-NinjaOneBillingAgreement -billingAgreement @{ name = 'Premium Support' } -Confirm:$false }
+			WhatIf = { New-NinjaOneBillingAgreement -billingAgreement @{ name = 'Premium Support' } -WhatIf }
+			Command = 'New-NinjaOnePOSTRequest'
+			Resource = 'v2/billing/agreements'
+		}
+		[pscustomobject]@{
+			Name = 'billing invoice creation'
+			Invoke = { New-NinjaOneBillingInvoice -billingInvoice @{ invoiceNumber = 'INV-206' } -Confirm:$false }
+			WhatIf = { New-NinjaOneBillingInvoice -billingInvoice @{ invoiceNumber = 'INV-206' } -WhatIf }
+			Command = 'New-NinjaOnePOSTRequest'
+			Resource = 'v2/billing/invoices'
+		}
+		[pscustomobject]@{
+			Name = 'billing invoice archive'
+			Invoke = { Invoke-NinjaOneBillingInvoicesArchive -request @{ invoiceIds = @(206) } -Confirm:$false }
+			WhatIf = { Invoke-NinjaOneBillingInvoicesArchive -request @{ invoiceIds = @(206) } -WhatIf }
+			Command = 'New-NinjaOnePOSTRequest'
+			Resource = 'v2/billing/invoices/archive'
+		}
+		[pscustomobject]@{
+			Name = 'billing account update'
+			Invoke = { Set-NinjaOneBillingAccount -id 207 -billingAccount @{ name = 'Updated Account' } -Confirm:$false }
+			WhatIf = { Set-NinjaOneBillingAccount -id 207 -billingAccount @{ name = 'Updated Account' } -WhatIf }
+			Command = 'New-NinjaOnePUTRequest'
+			Resource = 'v2/billing/accounts/207'
+		}
+		[pscustomobject]@{
+			Name = 'billing agreement update'
+			Invoke = { Set-NinjaOneBillingAgreement -id 208 -billingAgreement @{ name = 'Updated Agreement' } -Confirm:$false }
+			WhatIf = { Set-NinjaOneBillingAgreement -id 208 -billingAgreement @{ name = 'Updated Agreement' } -WhatIf }
+			Command = 'New-NinjaOnePUTRequest'
+			Resource = 'v2/billing/agreements/208'
+		}
+		[pscustomobject]@{
+			Name = 'billing invoice update'
+			Invoke = { Set-NinjaOneBillingInvoice -id 209 -billingInvoice @{ note = 'Updated Invoice' } -Confirm:$false }
+			WhatIf = { Set-NinjaOneBillingInvoice -id 209 -billingInvoice @{ note = 'Updated Invoice' } -WhatIf }
+			Command = 'New-NinjaOnePUTRequest'
+			Resource = 'v2/billing/invoices/209'
+		}
+		[pscustomobject]@{
+			Name = 'billing product activation'
+			Invoke = { Invoke-NinjaOneBillingProductActivate -id 210 -Confirm:$false }
+			WhatIf = { Invoke-NinjaOneBillingProductActivate -id 210 -WhatIf }
+			Command = 'New-NinjaOnePATCHRequest'
+			Resource = 'v2/billing/products/210/activate'
+		}
+	)
+
+	It 'executes <Name>' -ForEach $BillingCases {
+		$result = & $PSItem.Invoke
+
+		$result.resource | Should -Be $PSItem.Resource
+	}
+
+	It 'does not execute <Name> with WhatIf' -ForEach $BillingCases {
+		& $PSItem.WhatIf
+
+		Assert-MockCalled -CommandName $PSItem.Command -ModuleName $ModuleName -Times 0
+	}
+
+	It 'delegates <Name> failures' -ForEach $BillingCases {
+		Mock -CommandName $PSItem.Command -ModuleName $ModuleName -MockWith { throw 'billing-mutation-failed' }
+
+		{ & $PSItem.Invoke } | Should -Throw '*billing-mutation-failed*'
 		Assert-MockCalled -CommandName New-NinjaOneError -ModuleName $ModuleName -Times 1
 	}
 }

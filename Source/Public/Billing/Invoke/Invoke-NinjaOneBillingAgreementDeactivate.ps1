@@ -32,7 +32,7 @@ function Invoke-NinjaOneBillingAgreementDeactivate {
 		try {
 			$Resource = ('v2/billing/agreements/{0}/deactivate' -f $id)
 			if ($PSCmdlet.ShouldProcess(('Billing Agreement {0}' -f $id), 'Deactivate')) {
-				return (New-NinjaOnePATCHRequest -Resource $Resource)
+				return (New-NinjaOnePATCHRequest -Resource $Resource -Body @{})
 			}
 		} catch {
 			New-NinjaOneError -ErrorRecord $_
