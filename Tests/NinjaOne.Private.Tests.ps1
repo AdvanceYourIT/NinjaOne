@@ -948,11 +948,13 @@ Describe 'Request helper functions' {
 		}
 	}
 
-	It 'honors raw and parse datetime flags on GET requests' {
+	It 'prefers -Raw over -ParseDateTime when both are set on GET requests' {
 		$module = Get-Module -Name $ModuleName
 		& $module {
 			$null = New-NinjaOneGETRequest -Resource '/v2/test' -Raw -ParseDateTime
 		}
+
+		Assert-MockCalled -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -Times 1 -ParameterFilter { $Raw -and -not $ParseDateTime }
 	}
 
 	It 'supports query strings on GET requests' {
