@@ -1382,6 +1382,24 @@ Describe 'New-NinjaOneGETRequest' {
 			Assert-MockCalled -CommandName Test-NinjaOneEndpointSupport -ModuleName $ModuleName -Times 1 -ParameterFilter { $Method -eq 'GET' -and $resource -eq '/v2/organizations' }
 		}
 
+		It 'should call endpoint support before request execution' {
+			$script:CallOrder = [System.Collections.Generic.List[string]]::new()
+			Mock -CommandName Test-NinjaOneEndpointSupport -ModuleName $ModuleName -MockWith {
+				$script:CallOrder.Add('preflight')
+			}
+			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
+				$script:CallOrder.Add('request')
+				[pscustomobject]@{ result = @{} }
+			}
+
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				$null = New-NinjaOneGETRequest -Resource '/v2/organizations'
+			}
+
+			$script:CallOrder | Should -Be @('preflight', 'request')
+		}
+
 		It 'should not leak endpoint support output into the request result' {
 			Mock -CommandName Test-NinjaOneEndpointSupport -ModuleName $ModuleName -MockWith { $true }
 			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
