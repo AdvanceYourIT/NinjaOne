@@ -948,6 +948,30 @@ Describe 'Request helper functions' {
 		}
 	}
 
+	It 'honors raw and parse datetime flags on GET requests' {
+		$module = Get-Module -Name $ModuleName
+		& $module {
+			$null = New-NinjaOneGETRequest -Resource '/v2/test' -Raw -ParseDateTime
+		}
+	}
+
+	It 'supports query strings on GET requests' {
+		$module = Get-Module -Name $ModuleName
+		& $module {
+			$qs = [System.Web.HttpUtility]::ParseQueryString([string]::Empty)
+			$qs.Add('limit', '10')
+			$qs.Add('skip', '5')
+			$null = New-NinjaOneGETRequest -Resource '/v2/test' -QSCollection $qs
+		}
+	}
+
+	It 'accepts hashtable query strings on DELETE requests' {
+		$module = Get-Module -Name $ModuleName
+		& $module {
+			$null = New-NinjaOneDELETERequest -Resource '/v2/test' -QSCollection @{ skip = 5; limit = 10 }
+		}
+	}
+
 	It 'throws when endpoint support rejects a request' {
 		$module = Get-Module -Name $ModuleName
 		& $module {
