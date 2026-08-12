@@ -948,6 +948,32 @@ Describe 'Request helper functions' {
 		}
 	}
 
+	It 'prefers -Raw over -ParseDateTime when both are set on GET requests' {
+		$module = Get-Module -Name $ModuleName
+		& $module {
+			$null = New-NinjaOneGETRequest -Resource '/v2/test' -Raw -ParseDateTime
+		}
+
+		Assert-MockCalled -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -Times 1 -ParameterFilter { $Raw -and -not $ParseDateTime }
+	}
+
+	It 'supports query strings on GET requests' {
+		$module = Get-Module -Name $ModuleName
+		& $module {
+			$qs = [System.Web.HttpUtility]::ParseQueryString([string]::Empty)
+			$qs.Add('limit', '10')
+			$qs.Add('skip', '5')
+			$null = New-NinjaOneGETRequest -Resource '/v2/test' -QSCollection $qs
+		}
+	}
+
+	It 'accepts hashtable query strings on DELETE requests' {
+		$module = Get-Module -Name $ModuleName
+		& $module {
+			$null = New-NinjaOneDELETERequest -Resource '/v2/test' -QSCollection @{ skip = 5; limit = 10 }
+		}
+	}
+
 	It 'throws when endpoint support rejects a request' {
 		$module = Get-Module -Name $ModuleName
 		& $module {
@@ -1354,6 +1380,24 @@ Describe 'New-NinjaOneGETRequest' {
 			}
 
 			Assert-MockCalled -CommandName Test-NinjaOneEndpointSupport -ModuleName $ModuleName -Times 1 -ParameterFilter { $Method -eq 'GET' -and $resource -eq '/v2/organizations' }
+		}
+
+		It 'should call endpoint support before request execution' {
+			$script:CallOrder = [System.Collections.Generic.List[string]]::new()
+			Mock -CommandName Test-NinjaOneEndpointSupport -ModuleName $ModuleName -MockWith {
+				$script:CallOrder.Add('preflight')
+			}
+			Mock -CommandName Invoke-NinjaOneRequest -ModuleName $ModuleName -MockWith {
+				$script:CallOrder.Add('request')
+				[pscustomobject]@{ result = @{} }
+			}
+
+			$module = Get-Module -Name $ModuleName
+			& $module {
+				$null = New-NinjaOneGETRequest -Resource '/v2/organizations'
+			}
+
+			$script:CallOrder | Should -Be @('preflight', 'request')
 		}
 
 		It 'should not leak endpoint support output into the request result' {
